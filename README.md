@@ -1,11 +1,12 @@
+# Ansible-Based Certificate Renewal Automation Demo
 
-# 🛠️ Ansible-Based Certificate Renewal Automation Demo
+## Project Overview
 
-## ✅ Project Overview
 **Purpose**  
 To showcase automated, self-healing internal SSL certificate renewal using Ansible Automation Platform (AAP), Event-Driven Ansible (EDA), and ServiceNow — all built locally with a minimal VM footprint and fully reusable via Git.
 
 **Goals**
+
 - Demonstrate an end-to-end automated SSL certificate renewal process
 - Showcase integration with Microsoft PKI, ServiceNow, and web servers
 - Prove self-healing automation using Event-Driven Ansible
@@ -14,7 +15,8 @@ To showcase automated, self-healing internal SSL certificate renewal using Ansib
 
 ---
 
-## 🧱 Architecture & Components
+## Architecture & Components
+
 | Component | Role |
 |----------|------|
 | Ansible Automation Platform (AAP) | Executes workflows and automations |
@@ -29,7 +31,8 @@ To showcase automated, self-healing internal SSL certificate renewal using Ansib
 
 ---
 
-## 🔁 Self-Healing Automation Workflow
+## Self-Healing Automation Workflow
+
 | Phase | Step | Description |
 |-------|------|-------------|
 | Monitor | Cert expiry check | Scheduled or event-driven |
@@ -42,7 +45,8 @@ To showcase automated, self-healing internal SSL certificate renewal using Ansib
 
 ---
 
-## 🧩 Integration Points
+## Integration Points
+
 | System | Function |
 |--------|----------|
 | ServiceNow | Ticketing, approvals, status updates |
@@ -53,7 +57,8 @@ To showcase automated, self-healing internal SSL certificate renewal using Ansib
 
 ---
 
-## 🖥️ Local Development Environment – Minimal Footprint
+## Local Development Environment – Minimal Footprint
+
 | VM | OS | Purpose | Min Specs |
 |----|----|--------|-----------|
 | AD & PKI Server | Windows Server 2019+ | Domain Controller + Enterprise CA | 2 vCPU / 4GB / 30GB |
@@ -64,15 +69,17 @@ To showcase automated, self-healing internal SSL certificate renewal using Ansib
 
 ---
 
-## ⚙️ Provisioning & Automation Strategy
+## Provisioning & Automation Strategy
 
 ### Automation Tools
+
 - **Vagrant**: Spin up local VMs
 - **Ansible**: Configure VMs post-provision
 - **Terraform** *(optional)*: Define infrastructure as code if switching to cloud later
 - **Ansible Lightspeed**: Assist with generating playbooks and roles
 
 ### Automation Plan
+
 1. Vagrant provisions RHEL and Windows VMs
 2. Ansible configures:
    - AAP + EDA installation
@@ -83,7 +90,8 @@ To showcase automated, self-healing internal SSL certificate renewal using Ansib
 
 ---
 
-## 📁 Git Structure
+## Git Structure
+
 ```
 cert-renewal-demo/
 ├── automation/
@@ -110,19 +118,21 @@ cert-renewal-demo/
 
 ---
 
-## 📆 Recommended Timeline
-| Week | Milestone | Owner |
+## Recommended Timeline
+
+| Date | Milestone | Owner |
 |------|-----------|-------|
-| Week 1 | Finalize architecture + VM layout | Both |
-| Week 2 | Build base VMs (manually or via Vagrant) | Both |
-| Week 3 | Configure AAP, AD, and PKI | You |
-| Week 4 | Create renewal playbooks + roles | Colleague |
-| Week 5 | Integrate EDA + ServiceNow | Both |
-| Week 6 | Test, document, and publish repo | Both |
+| TBC | Finalize architecture + VM layout | Both |
+| TBC | Build base VMs (manually or via Vagrant) | Both |
+| TBC | Configure AAP, AD, and PKI | You |
+| TBC | Create renewal playbooks + roles | Colleague |
+| TBC | Integrate EDA + ServiceNow | Both |
+| TBC | Test, document, and publish repo | Both |
 
 ---
 
-## 📦 Deliverables
+## Deliverables
+
 - GitHub repository with all playbooks, EDA rules, and provisioning code
 - Architecture and workflow diagrams
 - Setup and run guide (`docs/`)

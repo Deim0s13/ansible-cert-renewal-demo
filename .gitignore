@@ -1,0 +1,27 @@
+# Terraform state files
+*.tfstate
+*.tfstate.*
+
+# Backup files
+*.backup
+
+# Crash logs
+crash.log
+
+# Sensitive variable files (you might use this locally)
+terraform.tfvars
+*.tfvars
+
+# Terraform directory (plugin & provider cache)
+.terraform/
+
+# Lock file (optional: keep if you want to pin providers in CI/CD)
+# .terraform.lock.hcl
+
+# Mac system files
+.DS_Store
+
+# Editor-specific
+.vscode/
+.idea/
+*.swp

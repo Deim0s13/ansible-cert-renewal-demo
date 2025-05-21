@@ -1,5 +1,5 @@
 
-# 🔐 Ansible-Based Certificate Renewal Automation Demo
+# Ansible-Based Certificate Renewal Automation Demo
 
 ## Project Overview
 

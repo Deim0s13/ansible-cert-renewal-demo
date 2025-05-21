@@ -22,3 +22,9 @@ variable "random_suffix" {
     type        = string
     description = "Random suffix added to unique resource names linke DNS and hostnames"
 }
+
+# SSH public key string used to log in to VMs (passed via CLI to avoid storing in Git)
+variable "admin_ssh_public_key" {
+    type        = string
+    description = "The SSH public key used to access the jump host"
+}

@@ -48,12 +48,9 @@ resource "azurerm_bastion_host" "main" {
     location                = azurerm_resource_group.main.location
     resource_group_name     = azurerm_resource_group.main.name
 
-    # The DNS name prefix must be unique across Azure
-    dns_name                = "cert-bastion-$(var.random_suffix)"
-
     ip_configuration {
       name                  = "Bastion-ip-config"
       subnet_id             = azurerm_subnet.bastion.id
       public_ip_address_id  = azurerm_public_ip.bastion.id
-    }   
+    }  
 }

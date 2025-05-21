@@ -8,3 +8,12 @@
 output "jump_host_ip" {
   value = azurerm_public_ip.jump.ip_address
 }
+
+##########################################
+# Output: Subnet ID for downstream VM provisioning
+##########################################
+
+output "subnet_id" {
+  description = "The ID of the main subnet used for VM deployment"
+  value       = azurerm_subnet.main.id
+}

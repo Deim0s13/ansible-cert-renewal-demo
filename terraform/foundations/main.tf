@@ -121,3 +121,32 @@ resource "azurerm_network_interface_security_group_association" "jump" {
   network_interface_id      = azurerm_network_interface.jump.id
   network_security_group_id = azurerm_network_security_group.jump.id
 }
+
+##########################################
+# Remote Execution: Install Ansible on Jump Host
+# This uses Terraform's null_resource and remote-exec provisioner
+# to SSH into the jump host and install Ansible automatically.
+##########################################
+
+resource "null_resource" "install_ansible_on_jump" {
+  # Ensure the jump host is created before this runs
+  depends_on = [azurerm_linux_virtual_machine.jump]
+
+  # Define SSH connection settings for the remote provisioner
+  connection {
+    type        = "ssh"
+    host        = azurerm_public_ip.jump.ip_address  # Use the public IP of the jump host
+    user        = "rheluser"                         # Admin username configured in VM module
+    private_key = file("~/.ssh/ansible-demo-key")    # Path to your SSH private key
+  }
+
+  # Inline remote commands to install Ansible using dnf
+  provisioner "remote-exec" {
+    inline = [
+      "echo '✅ Connecting to Jump Host...'",
+      "sudo dnf install -y epel-release",  # Enable extra packages
+      "sudo dnf install -y ansible",       # Install Ansible
+      "ansible --version"                  # Verify installation
+    ]
+  }
+}

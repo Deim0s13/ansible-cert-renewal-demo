@@ -1,47 +1,84 @@
 ##########################################
-# Shared variables reused from foundations
+# Shared Variables for All VMs
+# Supports both Linux and Windows modules
 ##########################################
 
-# Name of the Azure Resource Group where all infrastructure will live
-variable "resource_group_name" {
-    type        = string
-    description = "The name of the resource group used for the demo environment"
-    default     = "cert-renewal-demo-rg"
-}
-
-# Azure location/region to deploy resources into (e.g., AustraliaEast, EastUS, EastAsia)
 variable "location" {
-    type        = string
-    description = "Azure region where resources will be deployed"
-    default     = "EastAsia"
+  description = "The Azure region where all VMs will be deployed"
+  type        = string
 }
 
-# Random or unique string to ensure resources like Bastion DNS names don't clash
-variable "random_suffix" {
-    type        = string
-    description = "Random suffix added to unique resource names linke DNS and hostnames"
+variable "resource_group_name" {
+  description = "The name of the Azure resource group to deploy resources into"
+  type        = string
 }
-
-# SSH public key string used to log in to VMs (passed via CLI to avoid storing in Git)
-variable "admin_ssh_public_key" {
-    type        = string
-    description = "The SSH public key used to access the jump host"
-}
-
-##########################################
-# VM-specific variables
-##########################################
 
 variable "subnet_id" {
-  description = "ID of the subnet to attach VMs to"
+  description = "The ID of the subnet used by all VMs"
+  type        = string
+}
+
+variable "random_suffix" {
+  description = "Random suffix added to unique resource names like hostnames or DNS"
   type        = string
 }
 
 ##########################################
-# Shared NSG ID used by all Linux VMs
+# Network Security Group IDs
 ##########################################
 
 variable "linux_nsg_id" {
+  description = "The ID of the shared NSG used by Linux-based VMs"
   type        = string
-  description = "The Azure Resource ID of the shared Network Security Group (NSG) applied to all Linux-based VMs. This should be created in the foundations layer and passed in via CLI or script."
+}
+
+variable "windows_nsg_id" {
+  description = "The ID of the shared NSG used by Windows-based VMs"
+  type        = string
+}
+
+##########################################
+# Linux-Specific Inputs
+##########################################
+
+variable "admin_ssh_public_key" {
+  description = "The SSH public key used for accessing Linux VMs"
+  type        = string
+}
+
+##########################################
+# Optional Defaults for All VMs (Extendable)
+##########################################
+
+variable "default_vm_size_linux" {
+  description = "Default VM size for Linux-based VMs"
+  type        = string
+  default     = "Standard_B1s"
+}
+
+variable "default_vm_size_windows" {
+  description = "Default VM size for Windows-based VMs"
+  type        = string
+  default     = "Standard_B2s"
+}
+
+variable "default_disk_size_gb" {
+  description = "Default size (in GB) of the OS disk for all VMs"
+  type        = number
+  default     = 32
+}
+
+##########################################
+# Windows-Specific Inputs
+##########################################
+
+variable "admin_username" {
+  description = "The local administrator username for Windows VMs"
+  type        = string
+}
+
+variable "admin_password" {
+  description = "The local administrator password for Windows VMs"
+  type        = string
+  sensitive   = true
 }

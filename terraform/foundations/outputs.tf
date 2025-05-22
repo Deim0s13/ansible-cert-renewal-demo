@@ -24,3 +24,8 @@ output "linux_nsg_id" {
   description = "The ID of the shared Linux NSG used for all Linux-based VMs"
   value       = azurerm_network_security_group.linux.id
 }
+
+output "windows_nsg_id" {
+  description = "The ID of the shared Windows NSG used for all Windows-based VMs"
+  value       = azurerm_network_security_group.windows.id
+}

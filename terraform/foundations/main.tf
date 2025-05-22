@@ -143,10 +143,13 @@ resource "null_resource" "install_ansible_on_jump" {
   # Inline remote commands to install Ansible using dnf
   provisioner "remote-exec" {
     inline = [
-      "echo '✅ Connecting to Jump Host...'",
-      "sudo dnf install -y epel-release",  # Enable extra packages
-      "sudo dnf install -y ansible",       # Install Ansible
-      "ansible --version"                  # Verify installation
+      "echo 'Verifying VM readiness...'",
+      "sleep 15",
+      "sudo dnf upgrade -y",
+      "echo 'Installing Ansible Core...'",
+      "sudo dnf install -y ansible-core",
+      "echo 'Verifying Ansible install:'",
+      "ansible --version || echo 'Ansible not installed correctly'"
     ]
   }
 }

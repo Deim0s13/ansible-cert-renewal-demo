@@ -1,10 +1,11 @@
 ##########################################
 # RHEL Web Server VM
 # - Private IP only
-# - Accessible via jump host
-# - Can be used for Apache/Nginx + Cert Renewal Demo
+# - Shared Linux NSG
+# - Uses tags and SSH key from variables
 ##########################################
 
+# NIC for rhel-web VM
 resource "azurerm_network_interface" "rhel_web" {
   name                = "rhel-web-nic"
   location            = var.location
@@ -16,8 +17,21 @@ resource "azurerm_network_interface" "rhel_web" {
     private_ip_address_allocation = "Static"
     private_ip_address            = "10.0.1.11"
   }
+
+  tags = {
+    role        = "rhel-web"
+    managed_by  = "terraform"
+    environment = "demo"
+  }
 }
 
+# Associate shared Linux NSG to this NIC
+resource "azurerm_network_interface_security_group_association" "rhel_web" {
+  network_interface_id      = azurerm_network_interface.rhel_web.id
+  network_security_group_id = var.linux_nsg_id
+}
+
+# RHEL Web Server VM
 resource "azurerm_linux_virtual_machine" "rhel_web" {
   name                = "rhel-web"
   resource_group_name = var.resource_group_name
@@ -33,6 +47,7 @@ resource "azurerm_linux_virtual_machine" "rhel_web" {
     name                 = "rhel-web-osdisk"
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
+    disk_size_gb         = 32
   }
 
   source_image_reference {
@@ -48,6 +63,8 @@ resource "azurerm_linux_virtual_machine" "rhel_web" {
   }
 
   tags = {
-    role = "rhel-web"
+    role        = "rhel-web"
+    managed_by  = "terraform"
+    environment = "demo"
   }
 }

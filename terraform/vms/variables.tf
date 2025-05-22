@@ -36,3 +36,12 @@ variable "subnet_id" {
   description = "ID of the subnet to attach VMs to"
   type        = string
 }
+
+##########################################
+# Shared NSG ID used by all Linux VMs
+##########################################
+
+variable "linux_nsg_id" {
+  type        = string
+  description = "The Azure Resource ID of the shared Network Security Group (NSG) applied to all Linux-based VMs. This should be created in the foundations layer and passed in via CLI or script."
+}

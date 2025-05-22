@@ -10,6 +10,8 @@ resource "azurerm_network_security_group" "linux" {
   location            = var.location
   resource_group_name = var.resource_group_name
 
+depends_on = [azurerm_resource_group.main]
+
   security_rule {
     name                       = "AllowSSHFromJumpHost"
     priority                   = 100

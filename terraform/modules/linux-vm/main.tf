@@ -55,7 +55,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
     name                 = "${var.name}-osdisk"
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
-    disk_size_gb         = var.disk_size_gb
+    disk_size_gb         = var.disk_size_gb != null ? var.disk_size_gb : null
   }
 
   source_image_reference {

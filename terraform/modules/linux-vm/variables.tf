@@ -49,7 +49,7 @@ variable "vm_size" {
 
 # OS disk size in GB
 variable "disk_size_gb" {
-  description = "OS disk size in GB"
+  description = "OS disk size in GB (optional)"
   type        = number
-  default     = 32
+  default     = null
 }

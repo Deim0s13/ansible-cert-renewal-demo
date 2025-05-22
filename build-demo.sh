@@ -21,7 +21,7 @@ fi
 
 # Detect OS for base64 decoding
 if [[ "$(uname)" == "Darwin" ]]; then
-  ADMIN_PASSWORD=$(base64 -D "$ENCODED_FILE")
+  ADMIN_PASSWORD=$(base64 -D -i "$ENCODED_FILE")
 else
   ADMIN_PASSWORD=$(base64 --decode "$ENCODED_FILE")
 fi

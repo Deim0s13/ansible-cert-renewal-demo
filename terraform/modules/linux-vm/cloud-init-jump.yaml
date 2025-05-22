@@ -1,0 +1,11 @@
+# Cloud-config
+package_update: true
+package_upgrade: false
+
+packages:
+  - ansible
+  - git
+  - python3-pip
+
+runcmd:
+  -echo "Ansible installed via cloud-init" > /etc/ansible-installed.txt

@@ -24,7 +24,8 @@ if [[ -f terraform.tfstate ]]; then
     echo "Terraform state is tied to: $STATE_SUBSCRIPTION_ID"
     echo "Your current Azure subscription is: $EXPECTED_SUBSCRIPTION_ID"
     echo ""
-    echo "🛑 Please run: ./reset-demo.sh"
+    echo "🛑 Please clean the state before proceeding:"
+    echo "   rm -rf .terraform terraform.tfstate terraform.tfstate.backup"
     exit 1
   fi
 fi
@@ -36,11 +37,12 @@ ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FOUNDATIONS_DIR="$ROOT_DIR/terraform/foundations"
 VMS_DIR="$ROOT_DIR/terraform/vms"
 SECRETS_DIR="$ROOT_DIR/terraform/secrets"
-
 ENCODED_FILE="$SECRETS_DIR/windows-admin.b64"
-SSH_KEY_PATH="$HOME/.ssh/ansible-demo-key.pub"
 RANDOM_SUFFIX="dev01"
 ADMIN_USERNAME="adminuser"
+SSH_KEY_PATH="$HOME/.ssh/ansible-demo-key.pub"
+PRIVATE_KEY_PATH="$HOME/.ssh/ansible-demo-key"
+INSTALLER_PATH="$ROOT_DIR/downloads/Ansible Automation Platform 2.5 Setup.tar.gz"
 
 # ───────────────────────────────────────
 # Validations
@@ -52,6 +54,17 @@ fi
 
 if [[ ! -f "$SSH_KEY_PATH" ]]; then
   echo "❌ SSH public key not found: $SSH_KEY_PATH"
+  exit 1
+fi
+
+if [[ ! -f "$PRIVATE_KEY_PATH" ]]; then
+  echo "❌ Matching private key not found: $PRIVATE_KEY_PATH"
+  exit 1
+fi
+
+if [[ ! -f "$INSTALLER_PATH" ]]; then
+  echo "❌ AAP installer not found at $INSTALLER_PATH"
+  echo "Please download and place it in: downloads/"
   exit 1
 fi
 
@@ -79,6 +92,7 @@ terraform -chdir="$FOUNDATIONS_DIR" apply -auto-approve \
 SUBNET_ID=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw subnet_id)
 LINUX_NSG_ID=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw linux_nsg_id)
 WINDOWS_NSG_ID=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw windows_nsg_id)
+JUMP_HOST_IP=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw jump_host_ip)
 SSH_KEY=$(cat "$SSH_KEY_PATH")
 
 # ───────────────────────────────────────
@@ -100,16 +114,14 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
   # ───────────────────────────────────────
   # Step 4: Upload AAP installer to Jump Host
   # ───────────────────────────────────────
-  INSTALLER_PATH=$(find "$ROOT_DIR/downloads" -name "ansible-automation-platform-setup-bundle-*.tar.gz" | head -n 1)
+  echo -e "\n📡 Uploading AAP installer to Jump Host at $JUMP_HOST_IP..."
 
-  if [[ -z "$INSTALLER_PATH" ]]; then
-    echo "⚠️  No AAP installer found in downloads/. Skipping upload to jump host."
-  else
-    echo -e "\n📡 Uploading AAP installer to Jump Host..."
-    JUMP_HOST_IP=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw jump_host_ip)
-
-    scp -o StrictHostKeyChecking=no "$INSTALLER_PATH" "rheluser@$JUMP_HOST_IP:~/"
-    echo "✅ AAP installer uploaded to Jump Host: ~/$(basename "$INSTALLER_PATH")"
+  scp -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no "$INSTALLER_PATH" "rheluser@$JUMP_HOST_IP:/tmp/"
+  if [[ $? -ne 0 ]]; then
+    echo "❌ Failed to upload AAP installer to Jump Host. Check disk space or permissions."
+    exit 1
   fi
+
+  echo "✅ AAP installer uploaded to /tmp on Jump Host."
 
 echo -e "\n✅ Demo environment deployment complete."

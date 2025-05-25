@@ -2,19 +2,18 @@
 
 ##########################################
 # build-demo.sh
-# Dynamically builds the full demo environment:
-# - Applies the foundations layer (network, NSGs)
+# Fully automates the provisioning of the demo:
+# - Applies foundations (network, NSGs, jump host)
 # - Pulls outputs from foundations
-# - Reads secure Windows admin password from base64 file
-# - Applies the VM layer via Terraform
+# - Decodes Windows password from base64
+# - Applies VM layer via Terraform
 ##########################################
 
 set -euo pipefail
 
-##########################################
-# Safety Check: Azure Subscription Match
-##########################################
-
+# ───────────────────────────────────────
+# Safety Check: Validate Azure Subscription
+# ───────────────────────────────────────
 EXPECTED_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 echo "🔍 Active Azure subscription: $EXPECTED_SUBSCRIPTION_ID"
 
@@ -25,23 +24,27 @@ if [[ -f terraform.tfstate ]]; then
     echo "Terraform state is tied to: $STATE_SUBSCRIPTION_ID"
     echo "Your current Azure subscription is: $EXPECTED_SUBSCRIPTION_ID"
     echo ""
-    echo "🛑 Please clean the state before proceeding:"
-    echo "   rm -rf .terraform terraform.tfstate terraform.tfstate.backup"
+    echo "🛑 Please run: ./reset-demo.sh"
     exit 1
   fi
 fi
 
-# Define directories
+# ───────────────────────────────────────
+# Paths and Configuration
+# ───────────────────────────────────────
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FOUNDATIONS_DIR="$ROOT_DIR/terraform/foundations"
 VMS_DIR="$ROOT_DIR/terraform/vms"
 SECRETS_DIR="$ROOT_DIR/terraform/secrets"
+
 ENCODED_FILE="$SECRETS_DIR/windows-admin.b64"
+SSH_KEY_PATH="$HOME/.ssh/ansible-demo-key.pub"
 RANDOM_SUFFIX="dev01"
 ADMIN_USERNAME="adminuser"
-SSH_KEY_PATH="$HOME/.ssh/ansible-demo-key.pub"
 
-# 🛡️ Validate required files
+# ───────────────────────────────────────
+# Validations
+# ───────────────────────────────────────
 if [[ ! -f "$ENCODED_FILE" ]]; then
   echo "❌ Secret file not found: $ENCODED_FILE"
   exit 1
@@ -52,27 +55,35 @@ if [[ ! -f "$SSH_KEY_PATH" ]]; then
   exit 1
 fi
 
-# 🔐 Decode Windows admin password
+# ───────────────────────────────────────
+# Decode Windows Admin Password
+# ───────────────────────────────────────
 if [[ "$(uname)" == "Darwin" ]]; then
   ADMIN_PASSWORD=$(base64 -D -i "$ENCODED_FILE")
 else
   ADMIN_PASSWORD=$(base64 --decode "$ENCODED_FILE")
 fi
 
-# 🧱 Step 1: Apply Foundations
+# ───────────────────────────────────────
+# Step 1: Apply Foundations
+# ───────────────────────────────────────
 echo -e "\n🏗  Applying foundations (network, NSGs)..."
 terraform -chdir="$FOUNDATIONS_DIR" init
 terraform -chdir="$FOUNDATIONS_DIR" apply -auto-approve \
   -var="random_suffix=$RANDOM_SUFFIX" \
   -var="admin_ssh_public_key=$(cat "$SSH_KEY_PATH")"
 
-# 📦 Step 2: Pull outputs
+# ───────────────────────────────────────
+# Step 2: Extract Outputs
+# ───────────────────────────────────────
 SUBNET_ID=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw subnet_id)
 LINUX_NSG_ID=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw linux_nsg_id)
 WINDOWS_NSG_ID=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw windows_nsg_id)
 SSH_KEY=$(cat "$SSH_KEY_PATH")
 
-# 🚀 Step 3: Deploy VMs
+# ───────────────────────────────────────
+# Step 3: Apply VM Layer
+# ───────────────────────────────────────
 echo -e "\n🚀 Applying VM layer..."
 terraform -chdir="$VMS_DIR" init
 terraform -chdir="$VMS_DIR" apply -auto-approve \

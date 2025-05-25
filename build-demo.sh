@@ -24,7 +24,7 @@ if [[ -f terraform.tfstate ]]; then
     echo "Terraform state is tied to: $STATE_SUBSCRIPTION_ID"
     echo "Your current Azure subscription is: $EXPECTED_SUBSCRIPTION_ID"
     echo ""
-    echo "🛑 Please clean the state before proceeding:"
+    echo "Please clean the state before proceeding:"
     echo "   rm -rf .terraform terraform.tfstate terraform.tfstate.backup"
     exit 1
   fi
@@ -43,6 +43,7 @@ ADMIN_USERNAME="adminuser"
 SSH_KEY_PATH="$HOME/.ssh/ansible-demo-key.pub"
 PRIVATE_KEY_PATH="$HOME/.ssh/ansible-demo-key"
 INSTALLER_PATH="$ROOT_DIR/downloads/Ansible Automation Platform 2.5 Setup.tar.gz"
+GIT_REPO_URL="https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
 
 # ───────────────────────────────────────
 # Validations
@@ -80,7 +81,7 @@ fi
 # ───────────────────────────────────────
 # Step 1: Apply Foundations
 # ───────────────────────────────────────
-echo -e "\n🏗  Applying foundations (network, NSGs)..."
+echo -e "\n Applying foundations (network, NSGs)..."
 terraform -chdir="$FOUNDATIONS_DIR" init
 terraform -chdir="$FOUNDATIONS_DIR" apply -auto-approve \
   -var="random_suffix=$RANDOM_SUFFIX" \
@@ -98,7 +99,7 @@ SSH_KEY=$(cat "$SSH_KEY_PATH")
 # ───────────────────────────────────────
 # Step 3: Apply VM Layer
 # ───────────────────────────────────────
-echo -e "\n🚀 Applying VM layer..."
+echo -e "\n Applying VM layer..."
 terraform -chdir="$VMS_DIR" init
 terraform -chdir="$VMS_DIR" apply -auto-approve \
   -var="location=EastAsia" \
@@ -114,7 +115,7 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
   # ───────────────────────────────────────
   # Step 4: Upload AAP installer to Jump Host
   # ───────────────────────────────────────
-  echo -e "\n📡 Uploading AAP installer to Jump Host at $JUMP_HOST_IP..."
+  echo -e "\n Uploading AAP installer to Jump Host at $JUMP_HOST_IP..."
 
   scp -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no "$INSTALLER_PATH" "rheluser@$JUMP_HOST_IP:/var/tmp/"
   if [[ $? -ne 0 ]]; then
@@ -122,6 +123,29 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
     exit 1
   fi
 
-  echo "✅ AAP installer uploaded to /tmp on Jump Host."
+  echo "AAP installer uploaded to /tmp on Jump Host."
+
+  # ───────────────────────────────────────
+  # Step 5: Clone your Git repo onto the Jump Host
+  # ───────────────────────────────────────
+  echo -e "\n Cloning Git repository onto Jump Host..."
+
+  JUMP_REPO_DIR=$(basename "$GIT_REPO_URL" .git)
+
+  ssh -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no rheluser@"$JUMP_HOST_IP" <<EOF
+    set -e
+    sudo dnf install -y git
+    if [ -d "$JUMP_REPO_DIR" ]; then
+      echo "Repo already exists. Pulling latest..."
+      cd "$JUMP_REPO_DIR"
+      git pull
+    else
+      echo "Cloning fresh repo..."
+      git clone "$GIT_REPO_URL"
+    fi
+  EOF
+
+  echo -e "\n✅ Jump Host is ready with Ansible and project playbooks."
+  echo " Tip: To use your own repository, edit the GIT_REPO_URL variable near the top of build-demo.sh"
 
 echo -e "\n✅ Demo environment deployment complete."

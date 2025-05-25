@@ -1,0 +1,8 @@
+# install_aap.yml
+# Runs the aap_install role against the AAP node.
+
+- name: Install AAP on controller node
+  hosts: aap
+  become: true
+  roles:
+    - aap_install

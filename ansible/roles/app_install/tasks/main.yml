@@ -1,0 +1,39 @@
+# roles/aap_install/tasks/main.yml
+# Performs a disconnected installation of AAP using the local tarball.
+
+- name: Ensure target installation directory exists
+  file:
+    path: "{{ aap_target_path }}"
+    state: directory
+    mode: "0755"
+  # Creates the installation target directory if it doesn't already exist.
+
+- name: Copy installer tarball from jump host to AAP node
+  copy:
+    src: "{{ aap_installer_archive }}"
+    dest: "/tmp/aap_setup.tar.gz"
+    remote_src: yes
+  # Since the installer is already on the AAP node (scp'd during build), remote_src avoids fetching it again.
+
+- name: Extract the installer
+  unarchive:
+    src: "/tmp/aap_setup.tar.gz"
+    dest: "{{ aap_target_path }}"
+    remote_src: true
+  # Extracts the tar.gz archive in-place on the AAP node.
+
+- name: Run the disconnected AAP installer
+  command:
+    chdir: "{{ aap_target_path }}/ansible-automation-platform-setup-bundle-*"
+    cmd: >
+      ./setup.sh
+      -e registry_url=""
+      -e aap_skip_container_tools=true
+      -e aap_skip_subscription=true
+  register: install_output
+  # Executes the installer script with appropriate flags for a disconnected install.
+
+- name: Output AAP install log to screen
+  debug:
+    var: install_output.stdout_lines
+  # Helpful for debugging and reviewing what happened during setup.sh.

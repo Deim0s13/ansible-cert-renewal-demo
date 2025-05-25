@@ -1,0 +1,11 @@
+# roles/aap_install/defaults/main.yml
+# Default variable values for AAP installation role.
+
+# Full path to the AAP installer tarball (already copied to the AAP host by build script)
+aap_installer_archive: "/var/tmp/Ansible Automation Platform 2.5 Setup.tar.gz"
+
+# Directory where the AAP installer will be extracted and executed
+aap_target_path: "/opt/ansible-automation-platform"
+
+# Path to the inventory file used by setup.sh (can be templated or copied in future)
+aap_inventory_file: "inventory.yml"

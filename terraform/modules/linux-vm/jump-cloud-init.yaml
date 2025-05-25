@@ -1,28 +1,16 @@
 #cloud-config
-#
-# This cloud-init script is used to rebalance the logical volume layout
-# on the Jump Host VM to avoid disk exhaustion issues.
-#
-# It assumes the RHEL image uses the default Logical Volume Manager (LVM)
-# setup provided by the Azure Marketplace.
-#
-# This script runs once on first boot, resizing key volumes:
-# - /home: used for rheluser SSH sessions and file storage
-# - /tmp: used for uploads like AAP installer tar.gz
-# - /var: used for logs and future Ansible operations
-#
+# Prepares RHEL jump host with Ansible tools
+
+hostname: jump-host
+fqdn: jump-host.internal.demo
+users:
+  - name: rheluser
+    groups: sudo
+    shell: /bin/bash
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
 
 runcmd:
-  # Resize the /home logical volume to 10GB
-  - lvresize -L 10G /dev/rootvg/homelv || echo "/home resize failed or already sized"
-
-  # Resize the /tmp logical volume to 4GB
-  - lvresize -L 4G /dev/rootvg/tmplv || echo "/tmp resize failed or already sized"
-
-  # Resize the /var logical volume to 10GB
-  - lvresize -L 10G /dev/rootvg/varlv || echo "/var resize failed or already sized"
-
-  # Expand the mounted file systems to match new LVs
-  - xfs_growfs /home || echo "/home growfs failed"
-  - xfs_growfs /tmp || echo "/tmp growfs failed"
-  - xfs_growfs /var || echo "/var growfs failed"
+  - echo "Installing Python and Ansible tools..."
+  - dnf upgrade -y
+  - dnf install -y ansible-core
+  - echo "✅ Jump host cloud-init complete"

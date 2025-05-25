@@ -116,7 +116,7 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
   # ───────────────────────────────────────
   echo -e "\n📡 Uploading AAP installer to Jump Host at $JUMP_HOST_IP..."
 
-  scp -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no "$INSTALLER_PATH" "rheluser@$JUMP_HOST_IP:/tmp/"
+  scp -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no "$INSTALLER_PATH" "rheluser@$JUMP_HOST_IP:/var/tmp/"
   if [[ $? -ne 0 ]]; then
     echo "❌ Failed to upload AAP installer to Jump Host. Check disk space or permissions."
     exit 1

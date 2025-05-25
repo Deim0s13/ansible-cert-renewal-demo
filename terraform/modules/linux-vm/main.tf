@@ -69,6 +69,8 @@ resource "azurerm_linux_virtual_machine" "vm" {
     version   = "latest"
   }
 
+  custom_data = var.name == "jump-host" ? filebase64("${path.module}/jump-cloud-init.yaml") : null
+
   tags = {
     role        = var.name
     environment = "demo"

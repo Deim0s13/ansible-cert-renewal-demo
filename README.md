@@ -1,143 +1,134 @@
-
 # Ansible-Based Certificate Renewal Automation Demo
 
 ## Project Overview
 
 ### Purpose
 
-To showcase automated, self-healing internal SSL certificate renewal using Ansible Automation Platform (AAP), Event-Driven Ansible (EDA), and ServiceNow — deployable both **locally** and in **Azure**, and fully reusable via Git.
+This project demonstrates a **fully automated, self-healing certificate renewal solution** using:
 
-### Goals
+- **Ansible Automation Platform (AAP)**
+- **Event-Driven Ansible (EDA)**
+- **Microsoft PKI (AD CS)**
+- **ServiceNow for ITSM integration**
 
-- Demonstrate an end-to-end automated SSL certificate renewal process
-- Showcase integration with Microsoft PKI, ServiceNow, and web servers
-- Prove self-healing automation using Event-Driven Ansible
-- Build a fully automated and redeployable lab using infrastructure-as-code
-- Leverage Ansible Lightspeed to accelerate and assist automation authoring
+All built with **Terraform**, **Ansible**, and best-practice GitOps, deployable on Azure.
 
 ---
 
 ## Architecture & Components
 
-| Component | Role |
-|----------|------|
-| Ansible Automation Platform (AAP) | Executes workflows and automations |
-| Event-Driven Ansible (EDA) | Triggers automation on events (e.g. cert expiry, SNOW change) |
-| Git Repository | Stores all automation, EDA rules, roles, documentation |
-| ServiceNow Dev Instance | Simulates full ITSM lifecycle integration |
-| Active Directory + Microsoft PKI | Certificate Authority for issuing/renewing internal certs |
-| Windows Web Server | Demonstrates SSL renewal using IIS |
-| RHEL Web Server | Demonstrates SSL renewal using Apache or NGINX |
-| (Optional) Network Appliance | VyOS, pfSense, or NGINX reverse proxy (future) |
-| Ansible Lightspeed | AI-assisted generation of Ansible content |
+| Component              | Role / Function                                      |
+|------------------------|------------------------------------------------------|
+| **Jump Host (RHEL)**   | Central control node for Ansible/AAP provisioning    |
+| **AAP Node**           | Hosts Ansible Automation Platform                    |
+| **Windows AD + PKI**   | Acts as Domain Controller and Certificate Authority  |
+| **Windows Web Server** | IIS-based demo site for SSL automation               |
+| **RHEL Web Server**    | Apache/Nginx-based demo for SSL renewal              |
+| **ServiceNow**         | Triggers cert renewal via webhooks / approvals       |
+| **EDA Controller**     | Automates workflows on expiry / alerts               |
 
 ---
 
-## Self-Healing Automation Workflow
+## Provisioning Workflow
 
-| Phase | Step | Description |
-|-------|------|-------------|
-| Monitor | Check for expiring certs | Scheduled or event-driven check |
-| Trigger | EDA rule initiates flow | Via expiry alert or ServiceNow webhook |
-| Request | Generate CSR or auto-request | Against AD CS or external CA |
-| Approval | SNOW Change Request | Auto/manual depending on rules |
-| Install | Deploy and bind certificate | Web server restart/reload included |
-| Validate | Verify deployment success | Check expiry, hostname, and chain |
-| Log/Notify | Log and alert | Post to AAP logs, ServiceNow, or Teams |
+### Step-by-Step Automation Flow
 
----
-
-## Integration Points
-
-| System | Function |
-|--------|----------|
-| ServiceNow | Change requests, approvals, ticketing |
-| Microsoft PKI (AD CS) | Cert issuance and revocation |
-| EDA | Triggers automation workflows |
-| Ansible Lightspeed | Assists with playbook and role creation |
-| Logging/Alerting | AAP, SNOW comments, or Teams webhook |
+1. **Run `build-demo.sh`**
+   - Creates all Azure infrastructure (NSGs, VNet, subnet, IPs, VMs)
+   - Injects secrets and config from `secrets/` and outputs
+2. **Jump Host Bootstrapping**
+   - Cloud-init installs Python, sets hostname, prepares for Ansible
+   - Remote-exec installs Ansible
+3. **Post-Provisioning with Ansible (Coming Next)**
+   - AAP provisioned from the Jump Host
+   - AD + PKI configured
+   - SSL cert automation setup
 
 ---
 
-## Deployment Options
-
-| Environment | Method | Notes |
-|-------------|--------|-------|
-| **Azure** | Terraform + Ansible | Full automation of networking + VMs |
-| **Local (VMware)** | Vagrant + Ansible | Alienware M18 with VMware Workstation |
-| *(Optional)* | Podman or cloud-native containers | For lightweight AAP/EDA or future containerized version |
-
----
-
-## Provisioning & Automation Strategy
-
-### Tools Used
-
-- **Terraform**: Provisioning in Azure (VMs, networking, IPs)
-- **Vagrant + VMware**: Local VM provisioning
-- **Ansible**: VM configuration, role execution, cert handling
-- **Ansible Lightspeed**: Assisted authoring of roles/playbooks
-- **Git**: Source of truth
-
-### Automation Flow
-
-1. Provision infrastructure (Azure via Terraform, or local via Vagrant)
-2. Run Ansible to configure AAP, web servers, PKI, etc.
-3. EDA listens for cert events or SNOW integration
-4. Renewal logic executes and validates automatically
-
----
-
-## Git Structure
+## Terraform Structure
 
 ```text
-ansible-cert-renewal-demo/
-├── terraform/                  # Azure IAC
+terraform/
+├── foundations/          # VNet, Subnet, NSGs, Jump Host
+│   ├── main.tf
+│   ├── linux-nsg.tf
+│   ├── windows-nsg.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   └── terraform.tfvars (optional)
+├── vms/                  # AAP, AD/PKI, Web Servers
 │   ├── main.tf
 │   ├── variables.tf
-│   └── outputs.tf
-├── automation/
-│   ├── Vagrantfile             # Local lab option
-│   └── network/
-│       └── cert-net.xml        # Libvirt fallback (if needed)
-├── ansible/
-│   ├── setup_aap.yml
-│   ├── configure_rhel_web.yml
-│   └── roles/
-├── playbooks/
-│   ├── check_cert_expiry.yml
-│   ├── renew_cert_windows.yml
-│   ├── renew_cert_rhel.yml
-│   └── validate_cert.yml
-├── eda/
-│   └── rulesets/
-│       └── self_healing_cert_check.yml
-├── docs/
-│   ├── architecture-diagram.drawio
-│   ├── environment-setup.md
-│   ├── azure-deployment.md
-│   └── demo-script.md
-```
+│   ├── outputs.tf
+│   └── terraform.tfvars (optional)
+├── modules/              # Reusable Linux and Windows VM modules
+│   ├── linux-vm/
+│   └── windows-vm/
+└── secrets/
+    └── windows-admin.b64 # Base64 encoded admin password (optional)
 
----
+    ---
 
-## Deployment Timeline (TBC)
+    ## Build & Destroy Scripts
 
-| Stage | Milestone | Owner |
-|-------|-----------|-------|
-| 1 | Finalize cross-platform architecture | Both |
-| 2 | Create Terraform + Ansible provisioning | Both |
-| 3 | Build local and Azure lab environments | You |
-| 4 | Create renewal automation and EDA rules | Colleague |
-| 5 | Integrate with ServiceNow | Both |
-| 6 | Test, document, and publish | Both |
+    ### `build-demo.sh`
 
----
+    Automates the full deployment of the demo environment:
 
-## Deliverables
+    - **Reads secrets**: Automatically decodes a base64-encoded admin password from `secrets/windows-admin.b64`
+    - **Fetches Terraform outputs** from the `foundations` layer:
+      - `subnet_id`
+      - `linux_nsg_id`
+      - `windows_nsg_id`
+    - **Injects runtime variables** including:
+      - SSH key (`~/.ssh/ansible-demo-key.pub`)
+      - Admin username/password
+      - Location, resource group, and suffix
+    - **Runs `terraform init` and `terraform apply`** in the `vms/` folder
+    - Designed to be reusable across any subscription (no hardcoded IDs)
 
-- GitHub repo with provisioning, automation, and documentation
-- Self-healing, event-driven certificate renewal demo
-- Azure deployment template and Vagrant fallback
-- Architecture diagrams and setup walkthrough
-- Optional: recorded or live demo walkthrough
+    > Fully automated: one command builds out your Azure infrastructure, including networking, NSGs, VMs, and provisioning logic.
+
+    ---
+
+    ### `destroy-demo.sh`
+
+    Handles the safe teardown of all deployed resources:
+
+    - **Two-phase destruction**:
+      1. Destroys VMs via `terraform destroy` in `vms/`
+      2. Then destroys networking and core infra from `foundations/`
+    - Optional `--cleanup` flag:
+      - Deletes `.terraform/`, `terraform.tfstate`, and `terraform.tfstate.backup` for both folders
+      - Prevents stale state issues across re-used environments
+    - Includes basic checks for missing output or credentials
+
+    > Designed for safe teardown between short-lived Azure trial subscriptions or daily rebuilds.
+
+    ---
+
+    ## State Agnosticism & Portability
+
+    To ensure the environment works across **rotating Azure subscriptions** or fresh setups:
+
+    - No hardcoded subscription IDs
+    - Secrets stored in base64 (not plaintext)
+    - All secrets, NSGs, and subnet references pulled dynamically via `terraform output`
+    - Git-tracked configuration and secure `.gitignore` templates
+    - All provisioning is initiated through scripts — no manual CLI steps required
+
+    ---
+
+    ## Coming Next: Ansible Automation Phase
+
+    | Phase            | Action                                        |
+    |------------------|-----------------------------------------------|
+    | ✅Provision Infra | Terraform builds networking + VMs             |
+    | ⏳ Install AAP    | Via Ansible from Jump Host                    |
+    | ⏳ Configure PKI  | Install and configure AD Domain + Certificate Authority |
+    | ⏳ Setup Cert Flow| Renew, validate, install, and log SSL certs  |
+    | ⏳ Integrate SNOW | Trigger flows via ServiceNow or webhook       |
+    | ⏳ Event Driven   | Use Event-Driven Ansible to enable self-healing |
+
+    > Next phase will use the Jump Host as the Ansible control node to fully automate the AAP, Windows PKI, and SSL management setup.

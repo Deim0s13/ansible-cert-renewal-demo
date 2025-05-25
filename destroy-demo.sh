@@ -59,7 +59,7 @@ SSH_KEY=$(cat "$SSH_KEY_FILE")
 # ───────────────────────────────────────
 # Destroy VM Layer
 # ───────────────────────────────────────
-echo "🔥 Destroying VM layer..."
+echo "Destroying VM layer..."
 terraform -chdir="$VMS_DIR" init -upgrade -reconfigure -input=false
 
 terraform -chdir="$VMS_DIR" destroy -auto-approve \
@@ -76,7 +76,7 @@ terraform -chdir="$VMS_DIR" destroy -auto-approve \
 # ───────────────────────────────────────
 # Destroy Foundations Layer
 # ───────────────────────────────────────
-echo "🌐 Destroying foundation layer..."
+echo "Destroying foundation layer..."
 terraform -chdir="$FOUNDATIONS_DIR" init -upgrade -reconfigure -input=false
 
 terraform -chdir="$FOUNDATIONS_DIR" destroy -auto-approve \
@@ -87,9 +87,9 @@ terraform -chdir="$FOUNDATIONS_DIR" destroy -auto-approve \
 # Cleanup Terraform State (Optional)
 # ───────────────────────────────────────
 if $CLEANUP; then
-  echo "🧹 Cleaning local Terraform state files..."
+  echo "Cleaning local Terraform state files..."
   rm -rf "$FOUNDATIONS_DIR/.terraform" "$FOUNDATIONS_DIR/terraform.tfstate"*
   rm -rf "$VMS_DIR/.terraform" "$VMS_DIR/terraform.tfstate"*
 fi
 
-echo "✅ Demo environment destroyed successfully."
+echo "Demo environment destroyed successfully."

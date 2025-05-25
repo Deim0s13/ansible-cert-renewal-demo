@@ -27,13 +27,17 @@ resource "azurerm_network_interface" "nic" {
   }
 }
 
+##########################################
 # Attach shared NSG to NIC
+##########################################
 resource "azurerm_network_interface_security_group_association" "nic_nsg" {
   network_interface_id      = azurerm_network_interface.nic.id
   network_security_group_id = var.nsg_id
 }
 
+##########################################
 # Define the VM
+# ##########################################
 resource "azurerm_linux_virtual_machine" "vm" {
   name                = var.name
   location            = var.location

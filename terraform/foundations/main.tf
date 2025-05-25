@@ -3,26 +3,32 @@
 # This file defines the core networking and infrastructure for the demo environment
 ##########################################
 
+##########################################
 # Create a resource group to hold all demo resources
+##########################################
 resource "azurerm_resource_group" "main" {
-    name = var.resource_group_name
-    location = var.location
+  name     = var.resource_group_name
+  location = var.location
 }
 
+##########################################
 # Create virtual network with a /16 addresss space
+##########################################
 resource "azurerm_virtual_network" "main" {
-    name = "cert-net"
-    address_space = ["10.0.0.0/16"]
-    location = azurerm_resource_group.main.location
-    resource_group_name = azurerm_resource_group.main.name
+  name                = "cert-net"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
 }
 
+##########################################
 # create the main subnet where demo VMs will reside
+##########################################
 resource "azurerm_subnet" "main" {
-    name = "cert-subnet"
-    resource_group_name = azurerm_resource_group.main.name
-    virtual_network_name = azurerm_virtual_network.main.name
-    address_prefixes = ["10.0.1.0/24"]
+  name                 = "cert-subnet"
+  resource_group_name  = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = ["10.0.1.0/24"]
 }
 
 ##########################################
@@ -30,53 +36,54 @@ resource "azurerm_subnet" "main" {
 ##########################################
 
 resource "azurerm_network_interface" "jump" {
-  name = "jump-host-nic"
-  location = azurerm_resource_group.main.location
+  name                = "jump-host-nic"
+  location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
 
   ip_configuration {
-    name = "internal"
-    subnet_id = azurerm_subnet.main.id
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.main.id
     private_ip_address_allocation = "Static"
-    private_ip_address = "10.0.1.10"
-    public_ip_address_id = azurerm_public_ip.jump.id
+    private_ip_address            = "10.0.1.10"
+    public_ip_address_id          = azurerm_public_ip.jump.id
   }
 }
 
 resource "azurerm_public_ip" "jump" {
-  name = "jump-host-ip"
-  location = azurerm_resource_group.main.location
+  name                = "jump-host-ip"
+  location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
-  allocation_method = "Static"
-  sku = "Standard"
+  allocation_method   = "Static"
+  sku                 = "Standard"
 }
 
 resource "azurerm_linux_virtual_machine" "jump" {
-  name = "jump-host"
+  name                = "jump-host"
   resource_group_name = azurerm_resource_group.main.name
-  location = azurerm_resource_group.main.location
-  size = "Standard_B1s"  # Low-cost VM
-  admin_username = "rheluser"
+  location            = azurerm_resource_group.main.location
+  size                = "Standard_B1s" # Low-cost VM
+  admin_username      = "rheluser"
   network_interface_ids = [
     azurerm_network_interface.jump.id,
   ]
   disable_password_authentication = true
 
   os_disk {
-    name = "jump-host-osdisk"
-    caching = "ReadWrite"
+    name                 = "jump-host-osdisk"
+    caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
+    disk_size_gb         = 64
   }
 
   source_image_reference {
     publisher = "RedHat"
-    offer = "RHEL"
-    sku = "9-lvm-gen2"
-    version = "latest"
+    offer     = "RHEL"
+    sku       = "9-lvm-gen2"
+    version   = "latest"
   }
 
   admin_ssh_key {
-    username = "rheluser"
+    username   = "rheluser"
     public_key = var.admin_ssh_public_key
   }
 
@@ -102,10 +109,10 @@ resource "azurerm_network_security_group" "jump" {
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
-    source_port_range          = "*"                      # Accept from any source port
-    destination_port_range     = "22"                     # SSH port
-    source_address_prefix      = "*"                      # Allow from all IPs
-    destination_address_prefix = "*"                      # Applies to this NIC
+    source_port_range          = "*"  # Accept from any source port
+    destination_port_range     = "22" # SSH port
+    source_address_prefix      = "*"  # Allow from all IPs
+    destination_address_prefix = "*"  # Applies to this NIC
   }
 
   tags = {
@@ -135,9 +142,9 @@ resource "null_resource" "install_ansible_on_jump" {
   # Define SSH connection settings for the remote provisioner
   connection {
     type        = "ssh"
-    host        = azurerm_public_ip.jump.ip_address  # Use the public IP of the jump host
-    user        = "rheluser"                         # Admin username configured in VM module
-    private_key = file("~/.ssh/ansible-demo-key")    # Path to your SSH private key
+    host        = azurerm_public_ip.jump.ip_address # Use the public IP of the jump host
+    user        = "rheluser"                        # Admin username configured in VM module
+    private_key = file("~/.ssh/ansible-demo-key")   # Path to your SSH private key
   }
 
   # Inline remote commands to install Ansible using dnf

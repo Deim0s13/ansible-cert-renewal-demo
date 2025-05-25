@@ -152,4 +152,4 @@ terraform/
 
     ---
 
-    🧩 *Next step: Create the Ansible playbook to install AAP from the Jump Host.*
+*Next step: Create the Ansible playbook to install AAP from the Jump Host.*

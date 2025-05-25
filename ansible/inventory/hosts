@@ -1,0 +1,54 @@
+# Ansible inventory for the SSL certificate renewal demo environment
+# This file defines the logical groups and host mappings used by playbooks.
+
+# --------------------------------------
+# Jump Host (control node for Ansible)
+# --------------------------------------
+[jump]
+jump-host ansible_host=<10.0.1.10> ansible_user=rheluser
+
+# --------------------------------------
+# AAP Controller
+# --------------------------------------
+[aap]
+aap ansible_host=<10.0.1.12> ansible_user=rheluser
+
+# --------------------------------------
+# Windows Domain Controller and PKI
+# --------------------------------------
+[ad_pki]
+ad-pki ansible_host=<10.0.1.14> ansible_user=adminuser ansible_password=<windows_password> ansible_connection=winrm ansible_winrm_transport=basic
+
+# --------------------------------------
+# Windows Web Server (IIS + Cert)
+# --------------------------------------
+[win_web]
+win-web ansible_host=<10.0.1.13> ansible_user=adminuser ansible_password=<windows_password> ansible_connection=winrm ansible_winrm_transport=basic
+
+# --------------------------------------
+# RHEL Web Server (Apache/Nginx + Cert)
+# --------------------------------------
+[rhel_web]
+rhel-web ansible_host=<10.0.1.11> ansible_user=rheluser
+
+# --------------------------------------
+# Group all web servers together
+# --------------------------------------
+[web_servers:children]
+rhel_web
+win_web
+
+# --------------------------------------
+# All Linux hosts
+# --------------------------------------
+[linux:children]
+jump
+aap
+rhel_web
+
+# --------------------------------------
+# All Windows hosts
+# --------------------------------------
+[windows:children]
+ad_pki
+win_web

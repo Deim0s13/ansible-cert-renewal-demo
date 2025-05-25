@@ -97,4 +97,19 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
   -var="admin_password=$ADMIN_PASSWORD" \
   -var="random_suffix=$RANDOM_SUFFIX"
 
+  # ───────────────────────────────────────
+  # Step 4: Upload AAP installer to Jump Host
+  # ───────────────────────────────────────
+  INSTALLER_PATH=$(find "$ROOT_DIR/downloads" -name "ansible-automation-platform-setup-bundle-*.tar.gz" | head -n 1)
+
+  if [[ -z "$INSTALLER_PATH" ]]; then
+    echo "⚠️  No AAP installer found in downloads/. Skipping upload to jump host."
+  else
+    echo -e "\n📡 Uploading AAP installer to Jump Host..."
+    JUMP_HOST_IP=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw jump_host_ip)
+
+    scp -o StrictHostKeyChecking=no "$INSTALLER_PATH" "rheluser@$JUMP_HOST_IP:~/"
+    echo "✅ AAP installer uploaded to Jump Host: ~/$(basename "$INSTALLER_PATH")"
+  fi
+
 echo -e "\n✅ Demo environment deployment complete."

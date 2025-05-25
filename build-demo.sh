@@ -115,26 +115,17 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
   # ───────────────────────────────────────
   # Step 4: Upload AAP installer to Jump Host
   # ───────────────────────────────────────
-  echo -e "\n📡 Uploading AAP installer to Jump Host at $JUMP_HOST_IP..."
+  echo -e "\n📡 Checking for AAP installer on Jump Host at $JUMP_HOST_IP..."
 
-  # Remote path where the installer should exist
   REMOTE_INSTALLER_PATH="/var/tmp/Ansible Automation Platform 2.5 Setup.tar.gz"
 
-  # Only copy if the installer isn't already present on the jump host
-  scp -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no "$INSTALLER_PATH" "rheluser@$JUMP_HOST_IP:/tmp/check_installer.sh"
+  # Check if the file already exists on the Jump Host
+  ssh -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no rheluser@"$JUMP_HOST_IP" "test -f \"$REMOTE_INSTALLER_PATH\""
 
-  ssh -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no rheluser@"$JUMP_HOST_IP" <<EOF
-    set -e
-    if [[ -f "$REMOTE_INSTALLER_PATH" ]]; then
-      echo "✅ AAP installer already exists at $REMOTE_INSTALLER_PATH — skipping upload."
-    else
-      echo "📤 Copying AAP installer..."
-      mkdir -p /var/tmp
-      exit 1
-    fi
-  EOF
-
-  if [[ $? -ne 0 ]]; then
+  if [[ $? -eq 0 ]]; then
+    echo "✅ AAP installer already exists at $REMOTE_INSTALLER_PATH — skipping upload."
+  else
+    echo "📤 Uploading AAP installer to Jump Host at $REMOTE_INSTALLER_PATH..."
     scp -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no "$INSTALLER_PATH" "rheluser@$JUMP_HOST_IP:/var/tmp/"
     if [[ $? -ne 0 ]]; then
       echo "❌ Failed to upload AAP installer to Jump Host. Check disk space or permissions."

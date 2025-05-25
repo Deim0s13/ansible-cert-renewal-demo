@@ -11,6 +11,26 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+##########################################
+# Safety Check: Azure Subscription Match
+##########################################
+
+EXPECTED_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+echo "🔍 Active Azure subscription: $EXPECTED_SUBSCRIPTION_ID"
+
+if [[ -f terraform.tfstate ]]; then
+  STATE_SUBSCRIPTION_ID=$(grep -o '"subscription_id": *"[^"]*"' terraform.tfstate | head -n 1 | cut -d '"' -f4)
+  if [[ "$STATE_SUBSCRIPTION_ID" != "$EXPECTED_SUBSCRIPTION_ID" ]]; then
+    echo "❌ Subscription mismatch detected!"
+    echo "Terraform state is tied to: $STATE_SUBSCRIPTION_ID"
+    echo "Your current Azure subscription is: $EXPECTED_SUBSCRIPTION_ID"
+    echo ""
+    echo "🛑 Destroy aborted. To manually clear the state, run:"
+    echo "   rm -rf .terraform terraform.tfstate terraform.tfstate.backup"
+    exit 1
+  fi
+fi
+
 # Confirm destruction
 echo "⚠️  WARNING: This will permanently destroy your demo environment."
 read -p "Are you sure you want to continue? (yes/no): " CONFIRM

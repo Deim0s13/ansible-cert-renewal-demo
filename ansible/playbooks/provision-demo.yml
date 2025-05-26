@@ -1,0 +1,45 @@
+---
+- name: Provision SSL Certificate Renewal Demo Environment
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # Unique identifier for scoping resource names
+    random_suffix: "dev01"
+
+    # SSH public key path (used for Linux VMs and jump host access)
+    ssh_key_path: "{{ lookup('env', 'HOME') }}/.ssh/ansible-demo-key.pub"
+
+    # Path to base64-encoded Windows admin password
+    encoded_password_path: "{{ playbook_dir }}/../../terraform/secrets/windows-admin.b64"
+
+    # Pre-downloaded AAP disconnected installer archive (local path)
+    installer_path: "{{ playbook_dir }}/../../downloads/Ansible Automation Platform 2.5 Setup.tar.gz"
+
+    # GitHub repository URL containing Ansible playbooks and roles
+    git_repo_url: "https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
+
+
+# ─────────────────────────────────────────────────────
+# Step 1: Provision networking, jump host, and NSGs
+# ─────────────────────────────────────────────────────
+- name: Include Terraform foundation provisioning
+  import_playbook: ../playbooks/provision-foundations.yml
+
+# ─────────────────────────────────────────────────────
+# Step 2: Provision VMs (AAP, AD PKI, Web Servers)
+# ─────────────────────────────────────────────────────
+- name: Include Terraform VM provisioning
+  import_playbook: ../playbooks/provision-vms.yml
+
+# ─────────────────────────────────────────────────────
+# Step 3: Upload AAP installer to Jump Host
+# ─────────────────────────────────────────────────────
+- name: Upload AAP installer to Jump Host
+  import_playbook: ../playbooks/upload-aap-installer.yml
+
+# ─────────────────────────────────────────────────────
+# Step 4: Clone Git repository onto Jump Host
+# ─────────────────────────────────────────────────────
+- name: Clone Ansible project repo onto Jump Host
+  import_playbook: ../playbooks/clone-repo-to-jump.yml

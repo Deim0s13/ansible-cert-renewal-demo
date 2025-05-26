@@ -1,0 +1,57 @@
+---
+- name: Upload AAP Disconnected Installer to Jump Host
+  hosts: jump
+  gather_facts: false
+
+  vars:
+    # ───── Local path to the pre-downloaded AAP installer archive ─────
+    local_installer_path: "../../downloads/Ansible Automation Platform 2.5 Setup.tar.gz"
+
+    # ───── Target path on the Jump Host ─────
+    remote_installer_path: "/var/tmp/Ansible Automation Platform 2.5 Setup.tar.gz"
+
+  tasks:
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 1: Validate Installer Exists Locally
+    # ─────────────────────────────────────────────────────────────
+
+    - name: Check if the installer exists locally
+      stat:
+        path: "{{ local_installer_path }}"
+      delegate_to: localhost
+      register: local_installer
+
+    - name: Fail if the installer is missing
+      fail:
+        msg: "❌ AAP installer not found at {{ local_installer_path }}. Please place the file there before running this playbook."
+      when: not local_installer.stat.exists
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 2: Check Remote Host for Existing Installer
+    # ─────────────────────────────────────────────────────────────
+
+    - name: Check if the installer already exists on Jump Host
+      stat:
+        path: "{{ remote_installer_path }}"
+      register: remote_installer
+
+    - name: Skip upload if installer is already present
+      debug:
+        msg: "✅ Installer already present on the Jump Host — skipping upload."
+      when: remote_installer.stat.exists
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 3: Upload Installer If Missing
+    # ─────────────────────────────────────────────────────────────
+
+    - name: Upload AAP installer to Jump Host
+      copy:
+        src: "{{ local_installer_path }}"
+        dest: "{{ remote_installer_path }}"
+        mode: '0644'
+      when: not remote_installer.stat.exists
+
+    - name: Confirm successful upload
+      debug:
+        msg: "✅ AAP installer uploaded successfully to {{ remote_installer_path }}"

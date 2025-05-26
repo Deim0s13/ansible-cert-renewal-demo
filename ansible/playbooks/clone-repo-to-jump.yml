@@ -1,0 +1,56 @@
+---
+- name: Clone Ansible Demo Repository onto Jump Host
+  hosts: jump
+  gather_facts: false
+
+  vars:
+    # ───── URL of the Git repository to clone ─────
+    git_repo_url: "https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
+
+    # ───── Clone target path (automatically stripped of .git) ─────
+    repo_clone_path: "/home/rheluser/{{ git_repo_url | basename | regex_replace('\\.git$', '') }}"
+
+  tasks:
+
+    # ─────────────────────────────────────────────────────
+    # Step 1: Ensure Git is Available
+    # ─────────────────────────────────────────────────────
+    - name: Ensure Git is installed on the Jump Host
+      become: true
+      package:
+        name: git
+        state: present
+
+    # ─────────────────────────────────────────────────────
+    # Step 2: Check if Repository Already Exists
+    # ─────────────────────────────────────────────────────
+    - name: Check if repository already exists on Jump Host
+      stat:
+        path: "{{ repo_clone_path }}"
+      register: repo_status
+
+    # ─────────────────────────────────────────────────────
+    # Step 3: Pull or Clone Repository
+    # ─────────────────────────────────────────────────────
+
+    - name: Pull latest changes if repo already exists
+      git:
+        repo: "{{ git_repo_url }}"
+        dest: "{{ repo_clone_path }}"
+        update: yes
+        version: main
+      when: repo_status.stat.exists
+
+    - name: Clone fresh copy if repo is not present
+      git:
+        repo: "{{ git_repo_url }}"
+        dest: "{{ repo_clone_path }}"
+        version: main
+      when: not repo_status.stat.exists
+
+    # ─────────────────────────────────────────────────────
+    # Step 4: Confirm Clone Success
+    # ─────────────────────────────────────────────────────
+    - name: Confirm Git repository is available on Jump Host
+      debug:
+        msg: "✅ Repository is now available at {{ repo_clone_path }}"

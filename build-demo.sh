@@ -115,20 +115,20 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
   # ───────────────────────────────────────
   # Step 4: Upload AAP installer to Jump Host
   # ───────────────────────────────────────
-  echo -e "\n📡 Checking for AAP installer on Jump Host at $JUMP_HOST_IP..."
+  echo -e "\n Checking for AAP installer on Jump Host at $JUMP_HOST_IP..."
 
   REMOTE_INSTALLER_PATH="/var/tmp/Ansible Automation Platform 2.5 Setup.tar.gz"
 
-  # Check if the file already exists on the Jump Host
-  ssh -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no rheluser@"$JUMP_HOST_IP" "test -f \"$REMOTE_INSTALLER_PATH\""
-
-  if [[ $? -eq 0 ]]; then
-    echo "✅ AAP installer already exists at $REMOTE_INSTALLER_PATH — skipping upload."
+  # Check if the installer already exists on the Jump Host
+  if ssh -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no "rheluser@$JUMP_HOST_IP" "[ -f \"$REMOTE_INSTALLER_PATH\" ]"; then
+    echo "AAP installer already exists on Jump Host at $REMOTE_INSTALLER_PATH — skipping upload."
   else
-    echo "📤 Uploading AAP installer to Jump Host at $REMOTE_INSTALLER_PATH..."
-    scp -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no "$INSTALLER_PATH" "rheluser@$JUMP_HOST_IP:/var/tmp/"
-    if [[ $? -ne 0 ]]; then
-      echo "❌ Failed to upload AAP installer to Jump Host. Check disk space or permissions."
+    echo "Uploading AAP installer to Jump Host at $REMOTE_INSTALLER_PATH..."
+    scp -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no "$INSTALLER_PATH" "rheluser@$JUMP_HOST_IP:$REMOTE_INSTALLER_PATH"
+    if [[ $? -eq 0 ]]; then
+      echo "Upload successful."
+    else
+      echo "❌ Upload failed. Please verify disk space and SSH access."
       exit 1
     fi
   fi
@@ -153,7 +153,7 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
     fi
   EOF
 
-  echo -e "\n✅ Jump Host is ready with Ansible and project playbooks."
+  echo -e "\n Jump Host is ready with Ansible and project playbooks."
   echo " Tip: To use your own repository, edit the GIT_REPO_URL variable near the top of build-demo.sh"
 
-echo -e "\n✅ Demo environment deployment complete."
+echo -e "\n Demo environment deployment complete."

@@ -1,0 +1,61 @@
+---
+- name: Validate Azure Subscription and Clean State if Mismatch
+  hosts: localhost
+  gather_facts: false
+  vars:
+    foundations_dir: "{{ playbook_dir }}/../../terraform/foundations"
+    tfstate_path: "{{ foundations_dir }}/terraform.tfstate"
+    tfstate_backup_path: "{{ foundations_dir }}/terraform.tfstate.backup"
+    terraform_cache_path: "{{ foundations_dir }}/.terraform"
+
+  tasks:
+
+    - name: Check if terraform.tfstate exists
+      stat:
+        path: "{{ tfstate_path }}"
+      register: tfstate_check
+
+    - name: Get current Azure subscription ID
+      command: az account show --query id -o tsv
+      register: current_subscription_id
+      changed_when: false
+
+    - name: Extract subscription ID from terraform.tfstate (if it exists)
+      shell: |
+        grep -o '"subscription_id": *"[^"]*"' {{ tfstate_path }} | head -n 1 | cut -d '"' -f4
+      register: state_subscription_id
+      when: tfstate_check.stat.exists
+      changed_when: false
+
+    - name: Show subscription IDs for debugging
+      debug:
+        msg: |
+          Current Subscription: {{ current_subscription_id.stdout }}
+          State Subscription: {{ state_subscription_id.stdout | default('n/a') }}
+
+    - name: Remove stale Terraform state if subscription mismatch
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ tfstate_path }}"
+        - "{{ tfstate_backup_path }}"
+        - "{{ terraform_cache_path }}"
+      when:
+        - tfstate_check.stat.exists
+        - state_subscription_id.stdout is defined
+        - state_subscription_id.stdout != current_subscription_id.stdout
+
+    - name: Warn user if subscription mismatch was found and state cleared
+      debug:
+        msg: |
+          Subscription mismatch detected.
+          Terraform state was cleared. Ready for new provisioning.
+      when:
+        - tfstate_check.stat.exists
+        - state_subscription_id.stdout is defined
+        - state_subscription_id.stdout != current_subscription_id.stdout
+
+    - name: Confirm subscription validation completed successfully
+      debug:
+        msg: "Subscription check complete. Proceed with provisioning."

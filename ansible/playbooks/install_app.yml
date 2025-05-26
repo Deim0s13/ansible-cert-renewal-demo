@@ -1,8 +1,10 @@
 # install_aap.yml
 # Runs the aap_install role against the AAP node.
 
-- name: Install AAP on controller node
+- name: Install Ansible Automation Platform
   hosts: aap
   become: true
+  vars_files:
+    - ../roles/aap_install/defaults/main.yml
   roles:
     - aap_install

@@ -138,27 +138,37 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
   # ───────────────────────────────────────
   echo -e "\n Cloning Git repository onto Jump Host..."
 
-  ssh -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no "rheluser@$JUMP_HOST_IP" bash -s <<EOF
-    set -euo pipefail
+  # Define this earlier in your script if not already
+  GIT_REPO_URL="https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
 
-    GIT_REPO_URL="$GIT_REPO_URL"
-    JUMP_REPO_DIR=\$(basename "\$GIT_REPO_URL" .git)
-    TARGET_DIR="/home/rheluser/\$JUMP_REPO_DIR"
+  # Extract repo name (e.g., ansible-cert-renewal-demo)
+  JUMP_REPO_DIR=$(basename "$GIT_REPO_URL" .git)
 
-    echo "Installing Git (if needed)..."
-    sudo dnf install -y git
+  # Send Git repo URL as an environment variable
+  ssh -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      "rheluser@$JUMP_HOST_IP" \
+      "bash -s" <<EOF
+  set -euo pipefail
 
-    if [[ -d "\$TARGET_DIR" ]]; then
-      echo "Repo already exists. Pulling latest changes..."
-      cd "\$TARGET_DIR"
-      git pull
-    else
-      echo "Cloning fresh repo: \$GIT_REPO_URL"
-      git clone "\$GIT_REPO_URL" "\$TARGET_DIR"
-    fi
+  GIT_REPO_URL="$GIT_REPO_URL"
+  JUMP_REPO_DIR=\$(basename "\$GIT_REPO_URL" .git)
+  TARGET_DIR="\$HOME/\$JUMP_REPO_DIR"
+
+  echo "Installing Git (if needed)..."
+  sudo dnf install -y git
+
+  if [[ -d "\$TARGET_DIR" ]]; then
+    echo "Repo already exists. Pulling latest changes..."
+    cd "\$TARGET_DIR"
+    git pull
+  else
+    echo "Cloning fresh repo: \$GIT_REPO_URL"
+    git clone "\$GIT_REPO_URL" "\$TARGET_DIR"
+  fi
   EOF
 
-  echo -e "\n Jump Host is ready with Ansible and project playbooks."
-  echo "Tip: To use your own repo, edit the GIT_REPO_URL variable near the top of build-demo.sh"
+  echo -e "\n Jump Host is ready with Ansible and your cloned Git repo."
+  echo "   To use your own repo, edit the GIT_REPO_URL variable near the top of build-demo.sh"
 
 echo -e "\n Demo environment deployment complete."

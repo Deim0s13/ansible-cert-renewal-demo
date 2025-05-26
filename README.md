@@ -67,89 +67,91 @@ terraform/
 │   └── windows-vm/
 └── secrets/
     └── windows-admin.b64  # Base64 encoded admin password
+```
 
-    ---
+---
 
-    ## Scripts
+## Scripts
 
-    ### `build-demo.sh`
+### `build-demo.sh`
 
-    Automates the full deployment of the demo environment:
+Automates the full deployment of the demo environment:
 
-    - **Reads secrets**: Decodes base64 Windows admin password from `secrets/`
-    - **Fetches Terraform outputs** from the `foundations` layer:
-      - `subnet_id`, `linux_nsg_id`, `windows_nsg_id`
-    - **Injects runtime variables**:
-      - SSH key (`~/.ssh/ansible-demo-key.pub`)
-      - Admin username/password
-      - Region, resource group, suffix
-    - **Executes `terraform init` and `apply`** in both `foundations/` and `vms/`
-    - Subscription-safe: checks active subscription ID before continuing
+- **Reads secrets**: Decodes base64 Windows admin password from `secrets/`
+- **Fetches Terraform outputs** from the `foundations` layer:
+  - `subnet_id`, `linux_nsg_id`, `windows_nsg_id`
+- **Injects runtime variables**:
+  - SSH key (`~/.ssh/ansible-demo-key.pub`)
+  - Admin username/password
+  - Region, resource group, suffix
+- **Executes `terraform init` and `apply`** in both `foundations/` and `vms/`
+  - Subscription-safe: checks active subscription ID before continuing
 
-    > Run this to deploy everything required for the demo in one step.
+> Run this to deploy everything required for the demo in one step.
 
-    ---
+---
 
-    ### `destroy-demo.sh`
+### `destroy-demo.sh`
 
-    Safely destroys the deployed environment:
+Safely destroys the deployed environment:
 
-    - **Two-phase destruction**:
-      1. Destroys the VM layer (`vms/`)
-      2. Then tears down networking and jump host (`foundations/`)
+- **Two-phase destruction**:
+  1. Destroys the VM layer (`vms/`)
+  2. Then tears down networking and jump host (`foundations/`)
     - Includes logic to decode the Windows password
     - Includes `--cleanup` flag:
-      - Removes `.terraform`, `terraform.tfstate`, and `.backup` files for fresh use
+    - Removes `.terraform`, `terraform.tfstate`, and `.backup` files for fresh use
 
-    > Run this when switching Azure subscriptions or after demo use.
+> Run this when switching Azure subscriptions or after demo use.
 
-    ---
+---
 
-    ### `reset-demo.sh`
+### `reset-demo.sh`
 
-    Optional utility script to clean all local state:
+  Optional utility script to clean all local state:
 
-    - Removes `.terraform/`, `.terraform.lock.hcl`, and state files from both Terraform directories
-    - Useful when switching to a new Azure subscription
+- Removes `.terraform/`, `.terraform.lock.hcl`, and state files from both Terraform directories
+- Useful when switching to a new Azure subscription
 
-    ```bash
-    ./reset-demo.sh
-
-    ---
-
-    ## Git & State Hygiene
-
-    This project is designed for **short-lived cloud environments** and **frequent re-creation**:
-
-    ✅ Subscription-agnostic
-    ✅ Reset scripts included for switching Azure subscriptions
-    ✅ SSH keys and admin secrets injected at runtime
-    ✅ `.gitignore` protects sensitive and transient files
-    ✅ Modular Terraform structure and reusable Ansible playbooks
+```bash
+./reset-demo.sh
+```
 
     ---
 
-    ## Coming Soon: Ansible Automation Phase
+## Git & State Hygiene
 
-    | Phase             | Action                                                  |
-    |-------------------|----------------------------------------------------------|
-    | ✅ Provision Infra | Terraform builds networking + VMs                        |
-    | ✅ Install Ansible | Ansible is installed on the Jump Host automatically      |
-    | ⏳ Install AAP     | AAP installed via playbook from Jump Host                |
-    | ⏳ Configure PKI   | AD Domain and Certificate Authority setup via AAP       |
-    | ⏳ Setup Cert Flow | Renew, validate, and bind SSL certs to services         |
-    | ⏳ Integrate SNOW  | Trigger certificate renewals via ServiceNow or webhook  |
-    | ⏳ Event Driven    | EDA automates flow based on cert expiry or alerts       |
+This project is designed for **short-lived cloud environments** and **frequent re-creation**:
 
-    ---
+✅ Subscription-agnostic
+✅ Reset scripts included for switching Azure subscriptions
+✅ SSH keys and admin secrets injected at runtime
+✅ `.gitignore` protects sensitive and transient files
+✅ Modular Terraform structure and reusable Ansible playbooks
 
-    ## Final Notes
+---
 
-    - Designed to work with **48-hour rotating Azure subscriptions**
-    - Scripts will detect mismatched state and prevent cross-subscription conflicts
-    - `reset-demo.sh` removes stale Terraform data to avoid errors
-    - Fully source-controlled and structured for **collaborative re-use**
+## Coming Soon: Ansible Automation Phase
 
-    ---
+| Phase             | Action                                                  |
+|-------------------|----------------------------------------------------------|
+| ✅ Provision Infra | Terraform builds networking + VMs                        |
+| ✅ Install Ansible | Ansible is installed on the Jump Host automatically      |
+| ⏳ Install AAP     | AAP installed via playbook from Jump Host                |
+| ⏳ Configure PKI   | AD Domain and Certificate Authority setup via AAP       |
+| ⏳ Setup Cert Flow | Renew, validate, and bind SSL certs to services         |
+| ⏳ Integrate SNOW  | Trigger certificate renewals via ServiceNow or webhook  |
+| ⏳ Event Driven    | EDA automates flow based on cert expiry or alerts       |
+
+---
+
+## Final Notes
+
+- Designed to work with **48-hour rotating Azure subscriptions**
+- Scripts will detect mismatched state and prevent cross-subscription conflicts
+- `reset-demo.sh` removes stale Terraform data to avoid errors
+- Fully source-controlled and structured for **collaborative re-use**
+
+---
 
 *Next step: Create the Ansible playbook to install AAP from the Jump Host.*

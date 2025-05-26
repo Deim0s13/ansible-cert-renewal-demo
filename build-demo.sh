@@ -138,28 +138,27 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
   # ───────────────────────────────────────
   echo -e "\n Cloning Git repository onto Jump Host..."
 
-  JUMP_REPO_DIR=$(basename "$GIT_REPO_URL" .git)
-
   ssh -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no "rheluser@$JUMP_HOST_IP" bash -s <<EOF
-  set -euo pipefail
+    set -euo pipefail
 
-  GIT_REPO_URL="https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
-  JUMP_REPO_DIR=$(basename "$GIT_REPO_URL" .git)
+    GIT_REPO_URL="$GIT_REPO_URL"
+    JUMP_REPO_DIR=\$(basename "\$GIT_REPO_URL" .git)
+    TARGET_DIR="/home/rheluser/\$JUMP_REPO_DIR"
 
-  echo "Installing Git (if needed)..."
-  sudo dnf install -y git
+    echo "Installing Git (if needed)..."
+    sudo dnf install -y git
 
-  if [[ -d "$HOME/$JUMP_REPO_DIR" ]]; then
-    echo "Repo already exists. Pulling latest changes..."
-    cd "$HOME/$JUMP_REPO_DIR"
-    git pull
-  else
-    echo "Cloning fresh repo: $GIT_REPO_URL"
-    git clone "$GIT_REPO_URL" "$HOME/$JUMP_REPO_DIR"
-  fi
+    if [[ -d "\$TARGET_DIR" ]]; then
+      echo "Repo already exists. Pulling latest changes..."
+      cd "\$TARGET_DIR"
+      git pull
+    else
+      echo "Cloning fresh repo: \$GIT_REPO_URL"
+      git clone "\$GIT_REPO_URL" "\$TARGET_DIR"
+    fi
   EOF
 
   echo -e "\n Jump Host is ready with Ansible and project playbooks."
-  echo "To use your own repo, edit the GIT_REPO_URL variable in build-demo.sh"
+  echo "Tip: To use your own repo, edit the GIT_REPO_URL variable near the top of build-demo.sh"
 
 echo -e "\n Demo environment deployment complete."

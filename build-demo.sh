@@ -127,10 +127,11 @@ echo -e "\n Demo environment deployment complete."
 echo -e "\n Running post-provisioning automation with Ansible..."
 
 set +e
-ansible-playbook ansible/playbooks/post-provision.yml \
+ansible-playbook ansible/playbooks/post-Provisioning.yml \
   --private-key "$PRIVATE_KEY_PATH" \
   -i "$JUMP_HOST_IP," \
   -u rheluser \
+  --ssh-extra-args "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
   -e "installer_path=$INSTALLER_PATH repo_url=$GIT_REPO_URL"
 ANSIBLE_EXIT_CODE=$?
 set -e

@@ -29,5 +29,11 @@ secrets/
 *.swp
 *.swo
 
-# === Downloads folder
+# === Downloads folder ===
 downloads/
+
+# === Ignore dynamic inventory ===
+ansible/inventory/generated-hosts
+
+# === Log Files ===
+*.log

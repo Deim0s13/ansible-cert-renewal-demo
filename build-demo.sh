@@ -49,6 +49,7 @@ RANDOM_SUFFIX="dev01"
 ADMIN_USERNAME="adminuser"
 SSH_KEY_PATH="$HOME/.ssh/ansible-demo-key.pub"
 PRIVATE_KEY_PATH="$HOME/.ssh/ansible-demo-key"
+export PRIVATE_KEY_PATH  # This ensures Ansible can see it
 INSTALLER_PATH="$ROOT_DIR/downloads/Ansible Automation Platform 2.5 Setup.tar.gz"
 GIT_REPO_URL="https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
 
@@ -97,11 +98,23 @@ terraform -chdir="$FOUNDATIONS_DIR" apply -auto-approve \
 # ───────────────────────────────────────
 # Step 2: Extract Outputs
 # ───────────────────────────────────────
+echo -e "\n Extracting Terraform output values..."
 SUBNET_ID=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw subnet_id)
 LINUX_NSG_ID=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw linux_nsg_id)
 WINDOWS_NSG_ID=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw windows_nsg_id)
 JUMP_HOST_IP=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw jump_host_ip)
 SSH_KEY=$(cat "$SSH_KEY_PATH")
+
+# ───────────────────────────────────────
+# Step 2b: Create Dynamic Inventory for Ansible
+# ───────────────────────────────────────
+INVENTORY_FILE="$ROOT_DIR/ansible/inventory/generated-hosts"
+
+echo -e "\n Generating dynamic inventory at $INVENTORY_FILE..."
+cat > "$INVENTORY_FILE" <<EOF
+[jump]
+jump ansible_host=$JUMP_HOST_IP ansible_user=rheluser ansible_ssh_private_key_file=$PRIVATE_KEY_PATH ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+EOF
 
 # ───────────────────────────────────────
 # Step 3: Apply VM Layer
@@ -126,19 +139,14 @@ echo -e "\n Demo environment deployment complete."
 # ───────────────────────────────────────
 echo -e "\n Running post-provisioning automation with Ansible..."
 
-set +e
 ansible-playbook ansible/playbooks/post-Provisioning.yml \
-  --private-key "$PRIVATE_KEY_PATH" \
-  -i "$JUMP_HOST_IP," \
-  -u rheluser \
-  --ssh-extra-args "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+  -i "$INVENTORY_FILE" \
   -e "installer_path=$INSTALLER_PATH repo_url=$GIT_REPO_URL"
-ANSIBLE_EXIT_CODE=$?
-set -e
 
+ANSIBLE_EXIT_CODE=$?
 if [[ $ANSIBLE_EXIT_CODE -eq 0 ]]; then
   echo "Post-provisioning completed successfully."
 else
   echo "Post-provisioning failed. Please check Ansible logs."
-  exit $ANSIBLE_EXIT_CODE
+  exit 1
 fi

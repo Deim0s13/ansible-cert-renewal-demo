@@ -45,11 +45,16 @@
     # Step 3: Upload Installer If Missing
     # ─────────────────────────────────────────────────────────────
 
-    - name: Upload AAP installer to Jump Host
-      copy:
+    - name: Upload AAP installer to Jump Host using rsync
+      synchronize:
         src: "{{ local_installer_path }}"
         dest: "{{ remote_installer_path }}"
-        mode: '0644'
+        mode: push
+        use_ssh_args: true
+        rsync_path: "rsync"
+      delegate_to: localhost
+      vars:
+        ansible_ssh_private_key_file: "{{ lookup('env', 'PRIVATE_KEY_PATH') }}"
       when: not remote_installer.stat.exists
 
     - name: Confirm successful upload

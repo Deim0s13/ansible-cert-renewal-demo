@@ -29,8 +29,16 @@
         state: present
 
     # ─────────────────────────────────────────────────────────
-    # Step 3: Confirm configuration complete
+    # Step 3: Ensure rsync is installed
+    # ─────────────────────────────────────────────────────────
+    - name: Install rsync if not already present
+      dnf:
+        name: rsync
+        state: present
+
+    # ─────────────────────────────────────────────────────────
+    # Step 4: Confirm configuration complete
     # ─────────────────────────────────────────────────────────
     - name: Confirm Jump Host prereqs are installed
       debug:
-        msg: "Jump Host updated and Git installed."
+        msg: "Jump Host updated with Git and rsync installed."

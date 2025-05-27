@@ -19,6 +19,11 @@
     # GitHub repository URL containing Ansible playbooks and roles
     git_repo_url: "https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
 
+# ─────────────────────────────────────────────
+# Step 0: Validate Azure Subscription Context
+# ─────────────────────────────────────────────
+- name: Validate Azure Subscription before proceeding
+  import_playbook: validate-subscription.yml
 
 # ─────────────────────────────────────────────────────
 # Step 1: Provision networking, jump host, and NSGs

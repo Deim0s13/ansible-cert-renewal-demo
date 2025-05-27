@@ -12,6 +12,13 @@
 set -euo pipefail
 
 # ───────────────────────────────────────
+# Logging Setup
+# ───────────────────────────────────────
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LOG_FILE="$ROOT_DIR/deploy-$(date +%Y%m%d-%H%M%S).log"
+exec > >(tee "$LOG_FILE") 2>&1
+
+# ───────────────────────────────────────
 # Safety Check: Validate Azure Subscription
 # ───────────────────────────────────────
 EXPECTED_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
@@ -112,63 +119,25 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
   -var="admin_password=$ADMIN_PASSWORD" \
   -var="random_suffix=$RANDOM_SUFFIX"
 
-  # ───────────────────────────────────────
-  # Step 4: Upload AAP installer to Jump Host
-  # ───────────────────────────────────────
-  echo -e "\n Checking for AAP installer on Jump Host at $JUMP_HOST_IP..."
-
-  REMOTE_INSTALLER_PATH="/var/tmp/Ansible Automation Platform 2.5 Setup.tar.gz"
-
-  # Check if the installer already exists on the Jump Host
-  if ssh -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no "rheluser@$JUMP_HOST_IP" "[ -f \"$REMOTE_INSTALLER_PATH\" ]"; then
-    echo "AAP installer already exists on Jump Host at $REMOTE_INSTALLER_PATH — skipping upload."
-  else
-    echo "Uploading AAP installer to Jump Host at $REMOTE_INSTALLER_PATH..."
-    scp -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no "$INSTALLER_PATH" "rheluser@$JUMP_HOST_IP:$REMOTE_INSTALLER_PATH"
-    if [[ $? -eq 0 ]]; then
-      echo "Upload successful."
-    else
-      echo "❌ Upload failed. Please verify disk space and SSH access."
-      exit 1
-    fi
-  fi
-
-  # ───────────────────────────────────────
-  # Step 5: Clone your Git repo onto the Jump Host
-  # ───────────────────────────────────────
-  echo -e "\n Cloning Git repository onto Jump Host..."
-
-  # Define this earlier in your script if not already
-  GIT_REPO_URL="https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
-
-  # Extract repo name (e.g., ansible-cert-renewal-demo)
-  JUMP_REPO_DIR=$(basename "$GIT_REPO_URL" .git)
-
-  # Send Git repo URL as an environment variable
-  ssh -i "$PRIVATE_KEY_PATH" -o StrictHostKeyChecking=no \
-      -o UserKnownHostsFile=/dev/null \
-      "rheluser@$JUMP_HOST_IP" \
-      "bash -s" <<EOF
-  set -euo pipefail
-
-  GIT_REPO_URL="$GIT_REPO_URL"
-  JUMP_REPO_DIR=\$(basename "\$GIT_REPO_URL" .git)
-  TARGET_DIR="\$HOME/\$JUMP_REPO_DIR"
-
-  echo "Installing Git (if needed)..."
-  sudo dnf install -y git
-
-  if [[ -d "\$TARGET_DIR" ]]; then
-    echo "Repo already exists. Pulling latest changes..."
-    cd "\$TARGET_DIR"
-    git pull
-  else
-    echo "Cloning fresh repo: \$GIT_REPO_URL"
-    git clone "\$GIT_REPO_URL" "\$TARGET_DIR"
-  fi
-  EOF
-
-  echo -e "\n Jump Host is ready with Ansible and your cloned Git repo."
-  echo "   To use your own repo, edit the GIT_REPO_URL variable near the top of build-demo.sh"
-
 echo -e "\n Demo environment deployment complete."
+
+# ───────────────────────────────────────
+# Step 4: Run Ansible Post-Provisioning Playbook
+# ───────────────────────────────────────
+echo -e "\n Running post-provisioning automation with Ansible..."
+
+set +e
+ansible-playbook ansible/playbooks/post-provision.yml \
+  --private-key "$PRIVATE_KEY_PATH" \
+  -i "$JUMP_HOST_IP," \
+  -u rheluser \
+  -e "installer_path=$INSTALLER_PATH repo_url=$GIT_REPO_URL"
+ANSIBLE_EXIT_CODE=$?
+set -e
+
+if [[ $ANSIBLE_EXIT_CODE -eq 0 ]]; then
+  echo "Post-provisioning completed successfully."
+else
+  echo "Post-provisioning failed. Please check Ansible logs."
+  exit $ANSIBLE_EXIT_CODE
+fi

@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────────────────────
+# Playbook: configure-jump-host.yml
+# Purpose: Prepare Jump Host for automation by installing prereqs
+# ─────────────────────────────────────────────────────────────
+
+- name: Configure Jump Host
+  hosts: all
+  become: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+
+  tasks:
+
+    # ─────────────────────────────────────────────────────────
+    # Step 1: Update all system packages
+    # ─────────────────────────────────────────────────────────
+    - name: Update all packages on the Jump Host
+      dnf:
+        name: '*'
+        state: latest
+        update_cache: true
+
+    # ─────────────────────────────────────────────────────────
+    # Step 2: Ensure Git is installed
+    # ─────────────────────────────────────────────────────────
+    - name: Install Git if not already present
+      dnf:
+        name: git
+        state: present
+
+    # ─────────────────────────────────────────────────────────
+    # Step 3: Confirm configuration complete
+    # ─────────────────────────────────────────────────────────
+    - name: Confirm Jump Host prereqs are installed
+      debug:
+        msg: "Jump Host updated and Git installed."

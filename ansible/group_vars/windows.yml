@@ -1,0 +1,5 @@
+ansible_user: adminuser
+ansible_password: "{{ windows_password }}"
+ansible_connection: winrm
+ansible_winrm_transport: basic
+ansible_port: 5985

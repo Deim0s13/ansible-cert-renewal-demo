@@ -1,46 +1,22 @@
-# Ansible inventory for the SSL certificate renewal demo environment
-# Defines logical host groups used in playbooks.
-
-########################################
-# Jump Host (control node for Ansible)
-########################################
 [jump]
-jump-host ansible_host=10.0.1.10 ansible_user=rheluser
+jump-host ansible_host=10.0.1.10
 
-########################################
-# AAP Controller (to be provisioned)
-########################################
 [aap]
-aap-host ansible_host=10.0.1.12 ansible_user=rheluser
+aap-host ansible_host=10.0.1.12
 
-########################################
-# Windows AD Domain Controller + PKI
-########################################
 [ad_pki]
-ad-pki ansible_host=10.0.1.14 ansible_user=adminuser ansible_password="{{ windows_password }}" ansible_connection=winrm ansible_winrm_transport=basic
+ad-pki ansible_host=10.0.1.14
 
-########################################
-# Windows Web Server (IIS with SSL)
-########################################
 [win_web]
-win-web ansible_host=10.0.1.13 ansible_user=adminuser ansible_password="{{ windows_password }}" ansible_connection=winrm ansible_winrm_transport=basic
+win-web ansible_host=10.0.1.13
 
-########################################
-# RHEL Web Server (Apache/Nginx)
-########################################
 [rhel_web]
-rhel-web ansible_host=10.0.1.11 ansible_user=rheluser
+rhel-web ansible_host=10.0.1.11
 
-########################################
-# Web Server Group (RHEL + Windows)
-########################################
 [web_servers:children]
 rhel_web
 win_web
 
-########################################
-# Logical groupings
-########################################
 [linux:children]
 jump
 aap

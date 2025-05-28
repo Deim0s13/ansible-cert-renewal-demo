@@ -139,19 +139,20 @@ echo -e "\n Demo environment deployment complete."
 # ───────────────────────────────────────
 echo -e "\n Running post-provisioning automation with Ansible..."
 
-# Use full inventory for post-provisioning
+# Use full inventory and config for post-provisioning
 POST_PROVISION_INVENTORY="$ROOT_DIR/ansible/inventory/demo-hosts"
 POST_PROVISION_CONFIG="$ROOT_DIR/ansible/ansible-post.cfg"
 
-ANSIBLE_CONFIG="$POST_PROVISION_CONFIG" \
-ansible-playbook ansible/playbooks/post-provision.yml \
+export ANSIBLE_CONFIG="$POST_PROVISION_CONFIG"
+
+ansible-playbook ansible/playbooks/post-provisioning.yml \
   -i "$POST_PROVISION_INVENTORY" \
   -e "installer_path=$INSTALLER_PATH repo_url=$GIT_REPO_URL"
 
 ANSIBLE_EXIT_CODE=$?
 if [[ $ANSIBLE_EXIT_CODE -eq 0 ]]; then
-  echo "✅ Post-provisioning completed successfully."
+  echo "Post-provisioning completed successfully."
 else
-  echo "❌ Post-provisioning failed. Please check Ansible logs."
+  echo "Post-provisioning failed. Please check Ansible logs."
   exit 1
 fi

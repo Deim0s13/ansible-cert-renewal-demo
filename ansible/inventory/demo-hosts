@@ -18,8 +18,8 @@ rhel_web
 win_web
 
 [linux:children]
-jump_host
-aap_host
+jump
+aap
 rhel_web
 
 [windows:children]

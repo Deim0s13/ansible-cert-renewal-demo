@@ -135,25 +135,56 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
 echo -e "\n Demo environment deployment complete."
 
 # ───────────────────────────────────────
-# Step 4: Run Ansible Post-Provisioning Playbook
+# Step 4: Generate Full Inventory for Post-Provisioning
 # ───────────────────────────────────────
-echo -e "\n🔧 Running post-provisioning automation with Ansible..."
+echo -e "\n Generating dynamic inventory at $INVENTORY_FILE..."
+cat > "$INVENTORY_FILE" <<EOF
+[jump]
+jump-host ansible_host=${JUMP_HOST_IP} ansible_user=rheluser ansible_ssh_private_key_file=${PRIVATE_KEY_PATH} ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+
+[aap]
+aap-host ansible_host=10.0.1.12 ansible_user=rheluser ansible_ssh_private_key_file=${PRIVATE_KEY_PATH}
+
+[rhel_web]
+rhel-web ansible_host=10.0.1.11 ansible_user=rheluser ansible_ssh_private_key_file=${PRIVATE_KEY_PATH}
+
+[ad_pki]
+ad-pki ansible_host=10.0.1.14 ansible_user=${ADMIN_USERNAME} ansible_password=${ADMIN_PASSWORD} ansible_connection=winrm ansible_winrm_transport=basic
+
+[win_web]
+win-web ansible_host=10.0.1.13 ansible_user=${ADMIN_USERNAME} ansible_password=${ADMIN_PASSWORD} ansible_connection=winrm ansible_winrm_transport=basic
+
+[web_servers:children]
+rhel_web
+win_web
+
+[linux:children]
+jump
+aap
+rhel_web
+
+[windows:children]
+ad_pki
+win_web
+EOF
+
+# ───────────────────────────────────────
+# Step 5: Run Ansible Post-Provisioning Playbook
+# ───────────────────────────────────────
+echo -e "\n Running post-provisioning automation with Ansible..."
 
 POST_PROVISION_INVENTORY="$INVENTORY_FILE"
 POST_PROVISION_CONFIG="$ROOT_DIR/ansible/ansible-post.cfg"
 
-echo "Inventory file: $POST_PROVISION_INVENTORY"
-cat "$POST_PROVISION_INVENTORY"
-
 ANSIBLE_CONFIG="$POST_PROVISION_CONFIG" \
-ansible-playbook "$ROOT_DIR/ansible/playbooks/post-provisioning.yml" \
+ansible-playbook ansible/playbooks/post-provisioning.yml \
   -i "$POST_PROVISION_INVENTORY" \
   -e "installer_path=$INSTALLER_PATH repo_url=$GIT_REPO_URL"
 
 ANSIBLE_EXIT_CODE=$?
 if [[ $ANSIBLE_EXIT_CODE -eq 0 ]]; then
-  echo "Post-provisioning completed successfully."
+  echo "✅ Post-provisioning completed successfully."
 else
-  echo "Post-provisioning failed. Please check Ansible logs."
+  echo "❌ Post-provisioning failed. Please check Ansible logs."
   exit 1
 fi

@@ -4,7 +4,7 @@
 # ─────────────────────────────────────────────────────────────
 
 - name: Configure Jump Host
-  hosts: all
+  hosts: jump
   become: true
   vars:
     ansible_python_interpreter: /usr/bin/python3
@@ -37,8 +37,16 @@
         state: present
 
     # ─────────────────────────────────────────────────────────
-    # Step 4: Confirm configuration complete
+    # Step 4: Ensure Python pip is installed
+    # ─────────────────────────────────────────────────────────
+    - name: Install pip for Python 3
+      dnf:
+        name: python3-pip
+        state: present
+
+    # ─────────────────────────────────────────────────────────
+    # Step 5: Confirm Jump Host configuration is complete
     # ─────────────────────────────────────────────────────────
     - name: Confirm Jump Host prereqs are installed
       debug:
-        msg: "Jump Host updated with Git and rsync installed."
+        msg: "Jump Host is ready: system updated and required tools installed."

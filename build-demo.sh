@@ -139,13 +139,15 @@ echo -e "\n Demo environment deployment complete."
 # ───────────────────────────────────────
 echo -e "\n Copying SSH keypair to Jump Host..."
 
-scp "$PRIVATE_KEY_PATH" "$PRIVATE_KEY_PATH.pub" "rheluser@$JUMP_HOST_IP:/home/rheluser/.ssh/"
+# Use known working key to connect to the jump host
+scp -i "$PRIVATE_KEY_PATH" "$PRIVATE_KEY_PATH" "$PRIVATE_KEY_PATH.pub" \
+  "rheluser@$JUMP_HOST_IP:/home/rheluser/.ssh/"
 
-# Fix permissions remotely
-ssh "rheluser@$JUMP_HOST_IP" << EOF
+# Fix permissions on remote side
+ssh -i "$PRIVATE_KEY_PATH" "rheluser@$JUMP_HOST_IP" << EOF
   chmod 600 /home/rheluser/.ssh/ansible-demo-key
   chmod 644 /home/rheluser/.ssh/ansible-demo-key.pub
-  echo "SSH keypair copied and permissions set."
+  echo "✅ SSH keypair copied and permissions set."
 EOF
 
 # ───────────────────────────────────────

@@ -33,7 +33,7 @@
   import_playbook: clone-repo-to-jump.yml
 
 # ─────────────────────────────────────────────────────────────
-# Step 4: Deploy SSH Keys to Linux Hosts
+# Step 4: Deploy & Setup SSH Keys to Linux Hosts
 # ─────────────────────────────────────────────────────────────
 - name: Step 4 – Distribute SSH Keys to Linux Hosts
-  import_playbook: deploy-ssh-keys.yml
+  import_playbook: setup-ssh-access.yml

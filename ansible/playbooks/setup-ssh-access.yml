@@ -1,80 +1,50 @@
 # ─────────────────────────────────────────────────────────────
-# Playbook: setup-ssh-access.yml
-# Purpose: Set up SSH access for passwordless automation
-#          from the Jump Host to all Linux nodes
+# Playbook: deploy-ssh-keys.yml
+# Purpose: Copy SSH private/public key pair from Jump Host to Linux VMs
 # ─────────────────────────────────────────────────────────────
 
-# ─────────────────────────────────────────────────────────────
-# Step 1: Copy SSH private/public keys to the Jump Host
-# ─────────────────────────────────────────────────────────────
-- name: Copy SSH keys to Jump Host
-  hosts: jump
+- name: Deploy SSH Keys to Linux Hosts
+  hosts: linux:!jump  # Exclude jump itself
   become: true
   vars:
-    ansible_python_interpreter: /usr/bin/python3
+    ssh_key_path: "/home/rheluser/.ssh/ansible-demo-key"
+    ssh_pub_key_path: "/home/rheluser/.ssh/ansible-demo-key.pub"
+    ssh_user: "rheluser"
 
   tasks:
 
     # ─────────────────────────────────────────────────────────
-    # Ensure .ssh directory exists
+    # Step 1: Ensure .ssh directory exists for the target user
     # ─────────────────────────────────────────────────────────
     - name: Ensure .ssh directory exists
       file:
-        path: /home/rheluser/.ssh
+        path: "/home/{{ ssh_user }}/.ssh"
         state: directory
-        owner: rheluser
-        group: rheluser
+        owner: "{{ ssh_user }}"
+        group: "{{ ssh_user }}"
         mode: '0700'
 
     # ─────────────────────────────────────────────────────────
-    # Copy SSH private key to Jump Host
+    # Step 2: Copy the public key from Jump Host to authorized_keys
     # ─────────────────────────────────────────────────────────
-    - name: Copy SSH private key
+    - name: Deploy SSH public key
       copy:
-        src: files/ansible-demo-key
-        dest: /home/rheluser/.ssh/ansible-demo-key
-        owner: rheluser
-        group: rheluser
+        src: "{{ ssh_pub_key_path }}"
+        dest: "/home/{{ ssh_user }}/.ssh/authorized_keys"
+        owner: "{{ ssh_user }}"
+        group: "{{ ssh_user }}"
         mode: '0600'
+      delegate_to: localhost
 
     # ─────────────────────────────────────────────────────────
-    # Copy SSH public key to Jump Host
+    # Step 3: (Optional) Copy private key if needed for nested access
     # ─────────────────────────────────────────────────────────
-    - name: Copy SSH public key
+    - name: Optionally deploy SSH private key (if needed for nested automation)
       copy:
-        src: files/ansible-demo-key.pub
-        dest: /home/rheluser/.ssh/ansible-demo-key.pub
-        owner: rheluser
-        group: rheluser
-        mode: '0644'
-
-# ─────────────────────────────────────────────────────────────
-# Step 2: Add public key to all Linux nodes' authorized_keys
-# ─────────────────────────────────────────────────────────────
-- name: Authorize SSH key on all Linux hosts
-  hosts: linux
-  become: true
-  vars:
-    ansible_python_interpreter: /usr/bin/python3
-
-  tasks:
-
-    # ─────────────────────────────────────────────────────────
-    # Ensure .ssh directory exists
-    # ─────────────────────────────────────────────────────────
-    - name: Ensure .ssh directory exists
-      file:
-        path: /home/rheluser/.ssh
-        state: directory
-        owner: rheluser
-        group: rheluser
-        mode: '0700'
-
-    # ─────────────────────────────────────────────────────────
-    # Add Jump Host's public key to authorized_keys
-    # ─────────────────────────────────────────────────────────
-    - name: Add public key to authorized_keys
-      authorized_key:
-        user: rheluser
-        key: "{{ lookup('file', 'files/ansible-demo-key.pub') }}"
-        state: present
+        src: "{{ ssh_key_path }}"
+        dest: "/home/{{ ssh_user }}/.ssh/ansible-demo-key"
+        owner: "{{ ssh_user }}"
+        group: "{{ ssh_user }}"
+        mode: '0600'
+      delegate_to: localhost
+      when: ssh_key_path is defined

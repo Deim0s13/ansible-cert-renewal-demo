@@ -93,7 +93,7 @@ echo -e "\n Applying foundations (network, NSGs)..."
 terraform -chdir="$FOUNDATIONS_DIR" init
 terraform -chdir="$FOUNDATIONS_DIR" apply -auto-approve \
   -var="random_suffix=$RANDOM_SUFFIX" \
-  -var="admin_ssh_public_key=$(cat "$SSH_KEY_PATH")"
+  -var="admin_ssh_public_key=$(<"$SSH_KEY_PATH")"
 
 # ───────────────────────────────────────
 # Step 2: Extract Outputs
@@ -127,28 +127,12 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
   -var="subnet_id=$SUBNET_ID" \
   -var="linux_nsg_id=$LINUX_NSG_ID" \
   -var="windows_nsg_id=$WINDOWS_NSG_ID" \
-  -var="admin_ssh_public_key=$SSH_KEY" \
+  -var="admin_ssh_public_key=$SSH_KEY_PATH" \
   -var="admin_username=$ADMIN_USERNAME" \
   -var="admin_password=$ADMIN_PASSWORD" \
   -var="random_suffix=$RANDOM_SUFFIX"
 
 echo -e "\n Demo environment deployment complete."
-
-# ───────────────────────────────────────
-# Step 3.5: Copy SSH Keys to Jump Host
-# ───────────────────────────────────────
-echo -e "\n Copying SSH keypair to Jump Host..."
-
-# Use known working key to connect to the jump host
-scp -i "$PRIVATE_KEY_PATH" "$PRIVATE_KEY_PATH" "$PRIVATE_KEY_PATH.pub" \
-  "rheluser@$JUMP_HOST_IP:/home/rheluser/.ssh/"
-
-# Fix permissions on remote side
-ssh -i "$PRIVATE_KEY_PATH" "rheluser@$JUMP_HOST_IP" << EOF
-  chmod 600 /home/rheluser/.ssh/ansible-demo-key
-  chmod 644 /home/rheluser/.ssh/ansible-demo-key.pub
-  echo "✅ SSH keypair copied and permissions set."
-EOF
 
 # ───────────────────────────────────────
 # Step 4: Generate Full Inventory for Post-Provisioning
@@ -199,7 +183,7 @@ ansible-playbook ansible/playbooks/post-provisioning.yml \
 
 ANSIBLE_EXIT_CODE=$?
 if [[ $ANSIBLE_EXIT_CODE -eq 0 ]]; then
-  echo "✅ Post-provisioning completed successfully."
+  echo "Post-provisioning completed successfully."
 else
   echo "❌ Post-provisioning failed. Please check Ansible logs."
   exit 1

@@ -10,7 +10,7 @@ module "rhel_web" {
   ip_address          = "10.0.1.11"
   subnet_id           = var.subnet_id
   nsg_id              = var.linux_nsg_id
-  ssh_key             = var.admin_ssh_public_key
+  ssh_key             = file(var.admin_ssh_public_key)
   location            = var.location
   resource_group_name = var.resource_group_name
 }
@@ -22,7 +22,7 @@ module "aap" {
   ip_address          = "10.0.1.12"
   subnet_id           = var.subnet_id
   nsg_id              = var.linux_nsg_id
-  ssh_key             = var.admin_ssh_public_key
+  ssh_key             = file(var.admin_ssh_public_key)
   location            = var.location
   resource_group_name = var.resource_group_name
 }

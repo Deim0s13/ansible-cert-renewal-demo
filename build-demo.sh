@@ -7,6 +7,7 @@
 # - Pulls outputs from foundations
 # - Decodes Windows password from base64
 # - Applies VM layer via Terraform
+# - Runs post-provisioning Ansible from local to jump host
 ##########################################
 
 set -euo pipefail
@@ -22,7 +23,7 @@ exec > >(tee "$LOG_FILE") 2>&1
 # Safety Check: Validate Azure Subscription
 # ───────────────────────────────────────
 EXPECTED_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-echo "🔍 Active Azure subscription: $EXPECTED_SUBSCRIPTION_ID"
+echo "Active Azure subscription: $EXPECTED_SUBSCRIPTION_ID"
 
 if [[ -f terraform.tfstate ]]; then
   STATE_SUBSCRIPTION_ID=$(grep -o '"subscription_id": *"[^"]*"' terraform.tfstate | head -n 1 | cut -d '"' -f4)
@@ -40,7 +41,6 @@ fi
 # ───────────────────────────────────────
 # Paths and Configuration
 # ───────────────────────────────────────
-ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FOUNDATIONS_DIR="$ROOT_DIR/terraform/foundations"
 VMS_DIR="$ROOT_DIR/terraform/vms"
 SECRETS_DIR="$ROOT_DIR/terraform/secrets"
@@ -49,7 +49,7 @@ RANDOM_SUFFIX="dev01"
 ADMIN_USERNAME="adminuser"
 SSH_KEY_PATH="$HOME/.ssh/ansible-demo-key.pub"
 PRIVATE_KEY_PATH="$HOME/.ssh/ansible-demo-key"
-export PRIVATE_KEY_PATH  # This ensures Ansible can see it
+export PRIVATE_KEY_PATH
 INSTALLER_PATH="$ROOT_DIR/downloads/Ansible Automation Platform 2.5 Setup.tar.gz"
 GIT_REPO_URL="https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
 
@@ -113,7 +113,7 @@ INVENTORY_FILE="$ROOT_DIR/ansible/inventory/generated-hosts"
 echo -e "\n Generating dynamic inventory at $INVENTORY_FILE..."
 cat > "$INVENTORY_FILE" <<EOF
 [jump]
-jump ansible_host=$JUMP_HOST_IP ansible_user=rheluser ansible_ssh_private_key_file=$PRIVATE_KEY_PATH ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+jump-host ansible_host=$JUMP_HOST_IP ansible_user=rheluser ansible_ssh_private_key_file=$PRIVATE_KEY_PATH ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
 EOF
 
 # ───────────────────────────────────────
@@ -137,15 +137,16 @@ echo -e "\n Demo environment deployment complete."
 # ───────────────────────────────────────
 # Step 4: Run Ansible Post-Provisioning Playbook
 # ───────────────────────────────────────
-echo -e "\n Running post-provisioning automation with Ansible..."
+echo -e "\n🔧 Running post-provisioning automation with Ansible..."
 
-# Use full inventory and config for post-provisioning
-POST_PROVISION_INVENTORY="$ROOT_DIR/ansible/inventory/demo-hosts"
+POST_PROVISION_INVENTORY="$INVENTORY_FILE"
 POST_PROVISION_CONFIG="$ROOT_DIR/ansible/ansible-post.cfg"
 
-export ANSIBLE_CONFIG="$POST_PROVISION_CONFIG"
+echo "Inventory file: $POST_PROVISION_INVENTORY"
+cat "$POST_PROVISION_INVENTORY"
 
-ansible-playbook ansible/playbooks/post-provisioning.yml \
+ANSIBLE_CONFIG="$POST_PROVISION_CONFIG" \
+ansible-playbook "$ROOT_DIR/ansible/playbooks/post-provisioning.yml" \
   -i "$POST_PROVISION_INVENTORY" \
   -e "installer_path=$INSTALLER_PATH repo_url=$GIT_REPO_URL"
 

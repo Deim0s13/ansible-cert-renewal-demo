@@ -135,6 +135,20 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
 echo -e "\n Demo environment deployment complete."
 
 # ───────────────────────────────────────
+# Step 3.5: Copy SSH Keys to Jump Host
+# ───────────────────────────────────────
+echo -e "\n Copying SSH keypair to Jump Host..."
+
+scp "$PRIVATE_KEY_PATH" "$PRIVATE_KEY_PATH.pub" "rheluser@$JUMP_HOST_IP:/home/rheluser/.ssh/"
+
+# Fix permissions remotely
+ssh "rheluser@$JUMP_HOST_IP" << EOF
+  chmod 600 /home/rheluser/.ssh/ansible-demo-key
+  chmod 644 /home/rheluser/.ssh/ansible-demo-key.pub
+  echo "SSH keypair copied and permissions set."
+EOF
+
+# ───────────────────────────────────────
 # Step 4: Generate Full Inventory for Post-Provisioning
 # ───────────────────────────────────────
 echo -e "\n Generating dynamic inventory at $INVENTORY_FILE..."

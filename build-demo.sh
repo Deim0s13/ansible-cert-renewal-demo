@@ -93,7 +93,7 @@ echo -e "\n Applying foundations (network, NSGs)..."
 terraform -chdir="$FOUNDATIONS_DIR" init
 terraform -chdir="$FOUNDATIONS_DIR" apply -auto-approve \
   -var="random_suffix=$RANDOM_SUFFIX" \
-  -var="admin_ssh_public_key=$(<"$SSH_KEY_PATH")"
+  -var="admin_ssh_public_key=$(cat "$SSH_KEY_PATH")"
 
 # ───────────────────────────────────────
 # Step 2: Extract Outputs

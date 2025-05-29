@@ -105,7 +105,7 @@ echo "Foundations layer destroyed."
 # Cleanup Terraform State (Optional)
 # ───────────────────────────────────────
 if $CLEANUP; then
-  echo -e "\n🧹 Cleaning local Terraform state files..."
+  echo -e "\n Cleaning local Terraform state files..."
   rm -rf "$FOUNDATIONS_DIR/.terraform" "$FOUNDATIONS_DIR/terraform.tfstate"*
   rm -rf "$VMS_DIR/.terraform" "$VMS_DIR/terraform.tfstate"*
   echo "Local state files cleaned."

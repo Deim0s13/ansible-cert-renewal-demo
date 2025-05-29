@@ -38,7 +38,7 @@
 
     - name: Skip upload if installer is already present
       debug:
-        msg: "✅ Installer already present on the Jump Host — skipping upload."
+        msg: "Installer already present on the Jump Host — skipping upload."
       when: remote_installer.stat.exists
 
     # ─────────────────────────────────────────────────────────────
@@ -59,4 +59,4 @@
 
     - name: Confirm successful upload
       debug:
-        msg: "✅ AAP installer uploaded successfully to {{ remote_installer_path }}"
+        msg: "AAP installer uploaded successfully to {{ remote_installer_path }}"

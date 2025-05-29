@@ -49,8 +49,13 @@ variable "nsg_id" {
 ##########################################
 # SSH public key used for authentication
 ##########################################
-variable "ssh_key" {
-  description = "SSH public key for admin user access"
+variable "admin_username" {
+  description = "Username for the admin user"
+  type        = string
+}
+
+variable "admin_ssh_public_key" {
+  description = "Public SSH key for the admin user"
   type        = string
 }
 

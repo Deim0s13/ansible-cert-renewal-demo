@@ -179,7 +179,7 @@ POST_PROVISION_CONFIG="$ROOT_DIR/ansible/ansible-post.cfg"
 ANSIBLE_CONFIG="$POST_PROVISION_CONFIG" \
 ansible-playbook ansible/playbooks/post-provisioning.yml \
   -i "$POST_PROVISION_INVENTORY" \
-  -e "installer_path=$INSTALLER_PATH repo_url=$GIT_REPO_URL"
+  -e "installer_path=$INSTALLER_PATH repo_url=$GIT_REPO_URL private_key_path=$PRIVATE_KEY_PATH" # Pass private_key_path as an extra var
 
 ANSIBLE_EXIT_CODE=$?
 if [[ $ANSIBLE_EXIT_CODE -eq 0 ]]; then

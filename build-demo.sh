@@ -46,7 +46,7 @@ VMS_DIR="$ROOT_DIR/terraform/vms"
 SECRETS_DIR="$ROOT_DIR/terraform/secrets"
 ENCODED_FILE="$SECRETS_DIR/windows-admin.b64"
 RANDOM_SUFFIX="dev01"
-ADMIN_USERNAME="adminuser"
+ADMIN_USERNAME="rheluser"
 SSH_KEY_PATH="$HOME/.ssh/ansible-demo-key.pub"
 PRIVATE_KEY_PATH="$HOME/.ssh/ansible-demo-key"
 export PRIVATE_KEY_PATH

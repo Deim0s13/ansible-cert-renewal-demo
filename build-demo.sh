@@ -127,7 +127,7 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
   -var="subnet_id=$SUBNET_ID" \
   -var="linux_nsg_id=$LINUX_NSG_ID" \
   -var="windows_nsg_id=$WINDOWS_NSG_ID" \
-  -var="admin_ssh_public_key=$SSH_KEY_PATH" \
+  -var="admin_ssh_public_key=$SSH_KEY" \
   -var="admin_username=$ADMIN_USERNAME" \
   -var="admin_password=$ADMIN_PASSWORD" \
   -var="random_suffix=$RANDOM_SUFFIX"

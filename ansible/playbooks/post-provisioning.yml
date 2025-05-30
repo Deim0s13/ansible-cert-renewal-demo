@@ -1,10 +1,11 @@
+---
 # ─────────────────────────────────────────────────────────────
 # Playbook: post-provision.yml
-# Purpose: Post-provisioning configuration of the Jump Host
+# Purpose: Post-provisioning configuration of the Jump Host and subsequent VMs
 # ─────────────────────────────────────────────────────────────
 
 - name: Post-Provisioning Automation on Jump Host
-  hosts: jump
+  hosts: jump # Ensure this targets the jump host for initial operations
   gather_facts: false
 
   vars:
@@ -14,14 +15,18 @@
     # ───── Full target directory where the Git repo will be cloned ─────
     target_dir: "{{ ansible_user_dir }}/{{ repo_url | basename | regex_replace('\\.git$', '') }}"
 
+    # private_key_path is passed from build-demo.sh and is needed by copy-private-key.yml
+    # Do not define it here if it's always expected from the command line,
+    # or give it a default if it can be omitted.
+    private_key_path: "{{ private_key_path }}" # This ensures the var is passed down
+
 # ─────────────────────────────────────────────────────────────
 # Step 0: Inject SSH Private Key to Jump Host (NEW STEP)
 # ─────────────────────────────────────────────────────────────
 - name: Step 0 – Inject SSH Private Key to Jump Host
   import_playbook: copy-private-key.yml
   vars:
-    # Pass the private_key_path to the imported playbook
-    private_key_path: "{{ private_key_path }}" # This variable needs to be passed down from the build script
+    private_key_path: "{{ private_key_path }}" # Pass the variable to the imported playbook
 
 # ─────────────────────────────────────────────────────────────
 # Step 1: Configure the Jump Host (basic packages, updates)

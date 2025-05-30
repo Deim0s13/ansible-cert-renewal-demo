@@ -28,12 +28,12 @@ echo "Active Azure subscription: $EXPECTED_SUBSCRIPTION_ID"
 if [[ -f terraform.tfstate ]]; then
   STATE_SUBSCRIPTION_ID=$(grep -o '"subscription_id": *"[^"]*"' terraform.tfstate | head -n 1 | cut -d '"' -f4)
   if [[ "$STATE_SUBSCRIPTION_ID" != "$EXPECTED_SUBSCRIPTION_ID" ]]; then
-    echo "❌ Subscription mismatch detected!"
+    echo "Subscription mismatch detected!"
     echo "Terraform state is tied to: $STATE_SUBSCRIPTION_ID"
     echo "Your current Azure subscription is: $EXPECTED_SUBSCRIPTION_ID"
     echo ""
     echo "Please clean the state before proceeding:"
-    echo "   rm -rf .terraform terraform.tfstate terraform.tfstate.backup"
+    echo "    rm -rf .terraform terraform.tfstate terraform.tfstate.backup"
     exit 1
   fi
 fi
@@ -49,7 +49,7 @@ RANDOM_SUFFIX="dev01"
 ADMIN_USERNAME="rheluser"
 SSH_KEY_PATH="$HOME/.ssh/ansible-demo-key.pub"
 PRIVATE_KEY_PATH="$HOME/.ssh/ansible-demo-key"
-export PRIVATE_KEY_PATH
+export PRIVATE_KEY_PATH # Exporting so ansible-playbook can pick it up if needed, though passing via -e is more explicit
 INSTALLER_PATH="$ROOT_DIR/downloads/Ansible Automation Platform 2.5 Setup.tar.gz"
 GIT_REPO_URL="https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
 
@@ -106,7 +106,7 @@ JUMP_HOST_IP=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw jump_host_ip)
 SSH_KEY=$(cat "$SSH_KEY_PATH")
 
 # ───────────────────────────────────────
-# Step 2b: Create Dynamic Inventory for Ansible
+# Step 2b: Create Dynamic Inventory for Ansible (Initial - for connecting to jump host)
 # ───────────────────────────────────────
 INVENTORY_FILE="$ROOT_DIR/ansible/inventory/generated-hosts"
 
@@ -135,18 +135,18 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
 echo -e "\n Demo environment deployment complete."
 
 # ───────────────────────────────────────
-# Step 4: Generate Full Inventory for Post-Provisioning
+# Step 4: Generate Full Inventory for Post-Provisioning (CRITICAL CHANGE HERE)
 # ───────────────────────────────────────
-echo -e "\n Generating dynamic inventory at $INVENTORY_FILE..."
+echo -e "\n Generating dynamic inventory at $INVENTORY_FILE (full)..."
 cat > "$INVENTORY_FILE" <<EOF
 [jump]
 jump-host ansible_host=${JUMP_HOST_IP} ansible_user=rheluser ansible_ssh_private_key_file=${PRIVATE_KEY_PATH} ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
 
 [aap]
-aap-host ansible_host=10.0.1.12 ansible_user=rheluser ansible_ssh_private_key_file=/home/rheluser/.ssh/ansible-demo-key
+aap-host ansible_host=10.0.1.12 ansible_user=rheluser ansible_ssh_private_key_file=/home/rheluser/.ssh/ansible-demo-key # <--- CRITICAL CHANGE: Path on Jump Host
 
 [rhel_web]
-rhel-web ansible_host=10.0.1.11 ansible_user=rheluser ansible_ssh_private_key_file=/home/rheluser/.ssh/ansible-demo-key
+rhel-web ansible_host=10.0.1.11 ansible_user=rheluser ansible_ssh_private_key_file=/home/rheluser/.ssh/ansible-demo-key # <--- CRITICAL CHANGE: Path on Jump Host
 
 [ad_pki]
 ad-pki ansible_host=10.0.1.14 ansible_user=${ADMIN_USERNAME} ansible_password=${ADMIN_PASSWORD} ansible_connection=winrm ansible_winrm_transport=basic
@@ -179,7 +179,7 @@ POST_PROVISION_CONFIG="$ROOT_DIR/ansible/ansible-post.cfg"
 ANSIBLE_CONFIG="$POST_PROVISION_CONFIG" \
 ansible-playbook ansible/playbooks/post-provisioning.yml \
   -i "$POST_PROVISION_INVENTORY" \
-  -e "installer_path=$INSTALLER_PATH repo_url=$GIT_REPO_URL private_key_path=$PRIVATE_KEY_PATH" # Pass private_key_path as an extra var
+  -e "installer_path=$INSTALLER_PATH repo_url=$GIT_REPO_URL private_key_path=$PRIVATE_KEY_PATH" # <--- Pass private_key_path
 
 ANSIBLE_EXIT_CODE=$?
 if [[ $ANSIBLE_EXIT_CODE -eq 0 ]]; then

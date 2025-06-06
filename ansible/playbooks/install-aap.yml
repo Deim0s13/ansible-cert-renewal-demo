@@ -5,44 +5,5 @@
   hosts: aap
   become: true
 
-  # ─────────────────────────────────────────────────────────────
-  # Helpful pre-checks (run on the control node once)
-  # ─────────────────────────────────────────────────────────────
-  pre_tasks:
-    - name: Fail early if ruamel.yaml is missing (avoids callback crash)
-      delegate_to: localhost
-      run_once: true
-      vars:
-        _ruamel_ok: "{{ (lookup('ansible.builtin.python', 'import importlib.util ; '
-                                                'importlib.util.find_spec(\"ruamel.yaml\") is not None'))
-                        | bool }}"
-      fail:
-        msg: |
-          The yaml callback plugin needs python-ruamel-yaml.
-          Install it on the control node:
-            sudo /usr/bin/python3 -m pip install --upgrade ruamel.yaml
-          Or run with:
-            ANSIBLE_STDOUT_CALLBACK=default
-      when: not _ruamel_ok and
-            (ansible_config_file is defined and
-             lookup('ini', 'stdout_callback type=defaults file=' + ansible_config_file) == 'yaml')
-
-    - name: Abort if vaulted passwords are missing (guard against CI mis-config)
-      assert:
-        that:
-          - aap_admin_password is defined and aap_admin_password | length > 0
-          - aap_pg_password    is defined and aap_pg_password    | length > 0
-        fail_msg: >
-          One or both AAP passwords are undefined.
-          Make sure vault is unlocked or env vars AAP_ADMIN_PASSWORD / AAP_PG_PASSWORD are set.
-
-  # ─────────────────────────────────────────────────────────────
-  # Role: aap_install (does the real work)
-  # ─────────────────────────────────────────────────────────────
   roles:
     - aap_install
-
-  # ─────────────────────────────────────────────────────────────
-  # Tag the whole play so you can run it explicitly
-  # ─────────────────────────────────────────────────────────────
-  tags: [install_aap]

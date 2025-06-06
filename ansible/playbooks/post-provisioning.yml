@@ -1,32 +1,28 @@
 ---
 # ─────────────────────────────────────────────────────────────
 # Playbook: post-provision.yml
-# Purpose: Post-provisioning configuration of the Jump Host and subsequent VMs
+# Purpose: Post-provisioning configuration of the Jump Host
+#          (no AAP install at this stage)
 # ─────────────────────────────────────────────────────────────
 
 - name: Post-Provisioning Automation on Jump Host
-  hosts: jump # Ensure this targets the jump host for initial operations
+  hosts: jump                         # initial ops run only on jump host
   gather_facts: false
 
   vars:
-    # ───── Remote path where the AAP installer will be placed ─────
-    remote_installer_path: /var/tmp/Ansible Automation Platform 2.5 Setup.tar.gz
-
     # ───── Full target directory where the Git repo will be cloned ─────
     target_dir: "{{ ansible_user_dir }}/{{ repo_url | basename | regex_replace('\\.git$', '') }}"
 
-    # private_key_path is passed from build-demo.sh and is needed by copy-private-key.yml
-    # Do not define it here if it's always expected from the command line,
-    # or give it a default if it can be omitted.
-    private_key_path: "{{ private_key_path }}" # This ensures the var is passed down
+    # private_key_path is passed from build-demo.sh and needed by copy-private-key.yml
+    private_key_path: "{{ private_key_path }}"
 
 # ─────────────────────────────────────────────────────────────
-# Step 0: Inject SSH Private Key to Jump Host (NEW STEP)
+# Step 0: Inject SSH Private Key to Jump Host
 # ─────────────────────────────────────────────────────────────
 - name: Step 0 – Inject SSH Private Key to Jump Host
   import_playbook: copy-private-key.yml
   vars:
-    private_key_path: "{{ private_key_path }}" # Pass the variable to the imported playbook
+    private_key_path: "{{ private_key_path }}"
 
 # ─────────────────────────────────────────────────────────────
 # Step 1: Configure the Jump Host (basic packages, updates)
@@ -35,13 +31,7 @@
   import_playbook: configure-jump-host.yml
 
 # ─────────────────────────────────────────────────────────────
-# Step 2: Upload AAP Installer
+# Step 2: Clone Git Repository to Jump Host
 # ─────────────────────────────────────────────────────────────
-- name: Step 2 – Upload AAP Installer
-  import_playbook: upload-aap-installer.yml
-
-# ─────────────────────────────────────────────────────────────
-# Step 3: Clone Git Repository to Jump Host
-# ─────────────────────────────────────────────────────────────
-- name: Step 3 – Clone Git Repository
+- name: Step 2 – Clone Git Repository
   import_playbook: clone-repo-to-jump.yml

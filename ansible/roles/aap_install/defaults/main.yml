@@ -1,11 +1,18 @@
-# roles/aap_install/defaults/main.yml
-# Default variable values for AAP installation role.
+# Non‑sensitive defaults for the AAP‑install role.
+# Secrets come from the vault file (highest precedence) or from
+# environment variables injected by CI.
 
-# Full path to the AAP installer tarball (already copied to the AAP host by build script)
-aap_installer_archive: "/var/tmp/Ansible Automation Platform 2.5 Setup.tar.gz"
+# Offline/disconnected registry (edit if you mirror)
+aap_registry_url: registry.redhat.io
 
-# Directory where the AAP installer will be extracted and executed
-aap_target_path: "/opt/ansible-automation-platform"
+# Optional runtime overrides – leave blank in Git
+# CI can supply them via:
+#   export AAP_ADMIN_PASSWORD=…
+#   export AAP_PG_PASSWORD=…
+aap_admin_password: "{{ lookup('env','AAP_ADMIN_PASSWORD') | default('', true) }}"
+aap_pg_password: "{{ lookup('env','AAP_PG_PASSWORD')   | default('', true) }}"
 
-# Path to the inventory file used by setup.sh (can be templated or copied in future)
-aap_inventory_file: "inventory.yml"
+# Bundle locations (edit to match your build script)
+aap_bundle_src: "/var/tmp/aap-2.5-setup-bundle.tar.gz" # on jump‑host
+aap_bundle_dest: "/opt/aap-setup-bundle.tar.gz" # on AAP VM
+aap_setup_dir: "/opt/ansible-automation-platform-setup"

@@ -62,14 +62,15 @@
 
     # 1.4  Verify ruamel.yaml import (debug only)
     - name: Verify ruamel.yaml present
-      shell: python - <<'PY'
-        import importlib.util, sys
-        print("ruamel.yaml found:", bool(importlib.util.find_spec("ruamel.yaml")))
-        PY
+      command: >
+        python -c "import importlib.util,sys; print('ruamel.yaml found:', bool(importlib.util.find_spec('ruamel.yaml')))"
       register: ruamel_check
       changed_when: false
+      failed_when: false        # don’t break the play if import fails
 
-    - debug:
+    # 1.5 Display the result
+    - name: Show ruamel.yaml presence result
+      debug:
         msg: "{{ ruamel_check.stdout.strip() }}"
 
 # ─────────────────────────────────────────────────────────────

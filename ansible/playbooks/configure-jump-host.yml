@@ -1,52 +1,66 @@
+---
 # ─────────────────────────────────────────────────────────────
 # Playbook: configure-jump-host.yml
-# Purpose: Prepare Jump Host for automation by installing prereqs
+# Purpose : Prepare the jump host for later automation
 # ─────────────────────────────────────────────────────────────
 
 - name: Configure Jump Host
   hosts: jump
   become: true
+  gather_facts: false
   vars:
     ansible_python_interpreter: /usr/bin/python3
 
   tasks:
-
-    # ─────────────────────────────────────────────────────────
-    # Step 1: Update all system packages
-    # ─────────────────────────────────────────────────────────
-    - name: Update all packages on the Jump Host
+    # ── System update ───────────────────────────────────────
+    - name: Update all packages on the jump host
       dnf:
         name: '*'
         state: latest
         update_cache: true
 
-    # ─────────────────────────────────────────────────────────
-    # Step 2: Ensure Git is installed
-    # ─────────────────────────────────────────────────────────
-    - name: Install Git if not already present
-      dnf:
-        name: git
+    # ── Core tools ───────────────────────────────────────────
+    - name: Ensure base packages are present
+      package:
+        name:
+          - git
+          - rsync
+          - python3-pip
+          - tar
+          - unzip
+          - podman
         state: present
 
-    # ─────────────────────────────────────────────────────────
-    # Step 3: Ensure rsync is installed
-    # ─────────────────────────────────────────────────────────
-    - name: Install rsync if not already present
-      dnf:
-        name: rsync
+    # ── ruamel.yaml for YAML callback ───────────────────────
+    - name: Try to install ruamel.yaml via dnf
+      package:
+        name: python3-ruamel-yaml
         state: present
+      register: dnf_ruamel
+      failed_when: false
 
-    # ─────────────────────────────────────────────────────────
-    # Step 4: Ensure Python pip is installed
-    # ─────────────────────────────────────────────────────────
-    - name: Install pip for Python 3
-      dnf:
-        name: python3-pip
+    - name: Install ruamel.yaml via pip if dnf not available
+      pip:
+        name: ruamel.yaml
         state: present
+        executable: /usr/bin/pip3
+      when: dnf_ruamel is failed or
+            (dnf_ruamel is defined and dnf_ruamel.rc|default(1) != 0)
 
-    # ─────────────────────────────────────────────────────────
-    # Step 5: Confirm Jump Host configuration is complete
-    # ─────────────────────────────────────────────────────────
-    - name: Confirm Jump Host prereqs are installed
+    - name: Verify ruamel.yaml present
+      command: >
+        python -c "import importlib.util,sys;
+                   print('ruamel.yaml found:',
+                         bool(importlib.util.find_spec('ruamel.yaml')))"
+      register: ruamel_check
+      changed_when: false
+      failed_when: false
+
+    - name: Show ruamel.yaml presence result
       debug:
-        msg: "Jump Host is ready: system updated and required tools installed."
+        msg: "{{ ruamel_check.stdout.strip() }}"
+
+    # ── Final message ───────────────────────────────────────
+    - name: Jump host ready
+      debug:
+        msg: "Jump host packages and Python dependencies are installed."

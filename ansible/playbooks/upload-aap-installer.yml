@@ -1,57 +1,61 @@
 ---
+# ─────────────────────────────────────────────────────────────
+# Playbook: upload-aap-installer.yml
+# Purpose : Copy the disconnected AAP bundle from the control
+#           node (your laptop / CI runner) to the jump host.
+# ─────────────────────────────────────────────────────────────
+
 - name: Upload AAP Disconnected Installer to Jump Host
   hosts: jump
+  become: false          # rsync runs as the SSH user
   gather_facts: false
-  become: false          # nothing needs root on localhost or jump for copy
 
   vars:
-    # Local path on control node (your laptop / CI)
+    # ── Local path on the control node (adjust as needed) ──
     local_installer_path: "{{ playbook_dir }}/../../downloads/aap-2.5-bundle.tar.gz"
 
-    # Destination path on the jump host
+    # ── Destination path on the jump host ───────────────────
     remote_installer_path: "/var/tmp/aap-2.5-bundle.tar.gz"
 
   tasks:
-  # ── Step 1: validate bundle exists locally ────────────────────────────
-  - name: Check if the installer exists locally
-    stat:
-      path: "{{ local_installer_path }}"
-    delegate_to: localhost
-    register: local_installer
+    # Validate bundle exists locally ---------------------
+    - name: Check that the installer exists on the control node
+      stat:
+        path: "{{ local_installer_path }}"
+      delegate_to: localhost
+      register: local_bundle
 
-  - name: Fail if the installer is missing
-    fail:
-      msg: "AAP installer not found at {{ local_installer_path }}."
-    when: not local_installer.stat.exists
-    delegate_to: localhost
+    - name: Abort if the installer is missing locally
+      fail:
+        msg: "❌ AAP bundle not found at {{ local_installer_path }}."
+      when: not local_bundle.stat.exists
+      delegate_to: localhost
 
-  # ── Step 2: check if it’s already on the jump host ────────────────────
-  - name: Check if the installer already exists on jump host
-    stat:
-      path: "{{ remote_installer_path }}"
-    register: remote_installer
+    # Check if already on jump host ----------------------
+    - name: Check if the bundle is already on the jump host
+      stat:
+        path: "{{ remote_installer_path }}"
+      register: remote_bundle
 
-  - name: Installer already present — skipping upload
-    debug:
-      msg: "Installer already present on the jump host."
-    when: remote_installer.stat.exists
+    # Upload with rsync if needed ------------------------
+    - name: Upload bundle to jump host with rsync
+      synchronize:
+        src: "{{ local_installer_path }}"
+        dest: "{{ remote_installer_path }}"
+        mode: push
+        checksum: yes            # skip if identical
+        use_ssh_args: true
+        rsync_opts:
+          - "--protect-args"     # handles spaces safely
+      delegate_to: localhost
+      vars:
+        ansible_ssh_private_key_file: "{{ lookup('env', 'PRIVATE_KEY_PATH') }}"
+      when: not remote_bundle.stat.exists
 
-  # ── Step 3: upload if missing (rsync) ─────────────────────────────────
-  - name: Upload AAP installer to jump host with rsync
-    synchronize:
-      src:  "{{ local_installer_path }}"
-      dest: "{{ remote_installer_path }}"
-      mode: push
-      use_ssh_args: true
-      checksum: yes
-      rsync_opts:
-        - "--protect-args"
-    delegate_to: localhost
-    vars:
-      ansible_ssh_private_key_file: "{{ lookup('env', 'PRIVATE_KEY_PATH') }}"
-    when: not remote_installer.stat.exists
-
-  - name: Confirm successful upload
-    debug:
-      msg: "AAP installer uploaded to {{ remote_installer_path }}"
-    when: not remote_installer.stat.exists
+    # Report outcome -------------------------------------
+    - name: Report bundle upload status
+      debug:
+        msg: >
+          {{ 'Bundle uploaded to ' ~ remote_installer_path
+             if not remote_bundle.stat.exists
+             else '✔ Bundle already present on jump host' }}

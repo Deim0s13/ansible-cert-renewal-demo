@@ -1,131 +1,31 @@
 ---
 # ─────────────────────────────────────────────────────────────
 # Playbook: post-provision.yml
-# Purpose: Fully prepare the Jump Host (key, packages, ruamel.yaml),
-#          then upload the AAP bundle, then clone the repo.
+# Purpose : Orchestrate jump-host prep, bundle upload, repo clone
+#           (AAP install happens later when you run install-aap.yml)
 # ─────────────────────────────────────────────────────────────
 
 - name: Post-Provisioning Automation on Jump Host
   hosts: jump
-  become: true
   gather_facts: false
-
   vars:
-    # Where the project repo will be cloned on the jump host
     target_dir: "{{ ansible_user_dir }}/{{ repo_url | basename | regex_replace('\\.git$', '') }}"
-    # SSH key path passed from build-demo.sh
     private_key_path: "{{ private_key_path }}"
 
-# ─────────────────────────────────────────────────────────────
-# Step 0 – Inject SSH private key
-# ─────────────────────────────────────────────────────────────
+# Step 0 – SSH key
 - name: Step 0 – Inject SSH Private Key to Jump Host
   import_playbook: copy-private-key.yml
   vars:
     private_key_path: "{{ private_key_path }}"
 
-# ─────────────────────────────────────────────────────────────
-# Step 1 – Configure the jump host (packages, ruamel.yaml)
-# ─────────────────────────────────────────────────────────────
+# Step 1 – Configure jump host (packages, ruamel.yaml, etc.)
 - name: Step 1 – Configure the Jump Host
-  hosts: jump
-  become: true
-  gather_facts: false
-  tasks:
-    - name: Install base RPMs
-      package:
-        name:
-          - python3
-          - python3-pip
-          - git
-          - tar
-          - unzip
-          - podman
-        state: present
+  import_playbook: ansible/playbooks/configure-jump-host.yml
 
-    - name: Install ruamel.yaml via dnf (if available)
-      package:
-        name: python3-ruamel-yaml
-        state: present
-      register: dnf_ruamel
-      failed_when: false
-
-    - name: Install ruamel.yaml via pip if dnf not available
-      pip:
-        name: ruamel.yaml
-        state: present
-        executable: /usr/bin/pip3
-      when: dnf_ruamel is failed or
-            (dnf_ruamel is defined and dnf_ruamel.rc|default(1) != 0)
-
-    - name: Verify ruamel.yaml present
-      command: >
-        python -c "import importlib.util,sys;
-                   print('ruamel.yaml found:',
-                         bool(importlib.util.find_spec('ruamel.yaml')))"
-      register: ruamel_check
-      changed_when: false
-      failed_when: false
-
-    - name: Show ruamel.yaml presence result
-      debug:
-        msg: "{{ ruamel_check.stdout.strip() }}"
-
-# ─────────────────────────────────────────────────────────────
 # Step 2 – Upload AAP bundle to jump host
-# ─────────────────────────────────────────────────────────────
 - name: Step 2 – Upload AAP Disconnected Installer
-  hosts: jump
-  become: false           # copy runs as the ssh user
-  gather_facts: false
+  import_playbook: ansible/playbooks/upload-aap-installer.yml
 
-  vars:
-    # Local path on your laptop / CI runner
-    local_installer_path: "{{ playbook_dir }}/../../downloads/aap-2.5-bundle.tar.gz"
-    # Destination path on the jump host
-    remote_installer_path: "/var/tmp/aap-2.5-bundle.tar.gz"
-
-  tasks:
-    - name: Check that installer exists on control node
-      stat:
-        path: "{{ local_installer_path }}"
-      delegate_to: localhost
-      register: local_installer
-
-    - name: Abort if installer is missing locally
-      fail:
-        msg: "AAP bundle not found at {{ local_installer_path }}."
-      when: not local_installer.stat.exists
-      delegate_to: localhost
-
-    - name: Check if bundle already present on jump host
-      stat:
-        path: "{{ remote_installer_path }}"
-      register: remote_installer
-
-    - name: Upload bundle to jump host with rsync
-      synchronize:
-        src: "{{ local_installer_path }}"
-        dest: "{{ remote_installer_path }}"
-        mode: push
-        checksum: yes
-        use_ssh_args: true
-        rsync_opts:
-          - "--protect-args"
-      delegate_to: localhost
-      vars:
-        ansible_ssh_private_key_file: "{{ lookup('env', 'PRIVATE_KEY_PATH') }}"
-      when: not remote_installer.stat.exists
-
-    - name: Report upload status
-      debug:
-        msg: >
-          {{ 'Bundle uploaded to ' ~ remote_installer_path
-             if not remote_installer.stat.exists
-             else '✔ Bundle already present on jump host' }}
-
-# ─────────────────────────────────────────────────────────────
-# Step 3 – Clone Git repository to jump host
-# ─────────────────────────────────────────────────────────────
+# Step 3 – Clone project repo to jump host
 - name: Step 3 – Clone Git Repository
   import_playbook: clone-repo-to-jump.yml

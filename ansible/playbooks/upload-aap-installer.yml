@@ -1,0 +1,57 @@
+---
+- name: Upload AAP Disconnected Installer to Jump Host
+  hosts: jump
+  gather_facts: false
+  become: false          # nothing needs root on localhost or jump for copy
+
+  vars:
+    # Local path on control node (your laptop / CI)
+    local_installer_path: "{{ playbook_dir }}/../../downloads/aap-2.5-bundle.tar.gz"
+
+    # Destination path on the jump host
+    remote_installer_path: "/var/tmp/aap-2.5-bundle.tar.gz"
+
+  tasks:
+  # ── Step 1: validate bundle exists locally ────────────────────────────
+  - name: Check if the installer exists locally
+    stat:
+      path: "{{ local_installer_path }}"
+    delegate_to: localhost
+    register: local_installer
+
+  - name: Fail if the installer is missing
+    fail:
+      msg: "AAP installer not found at {{ local_installer_path }}."
+    when: not local_installer.stat.exists
+    delegate_to: localhost
+
+  # ── Step 2: check if it’s already on the jump host ────────────────────
+  - name: Check if the installer already exists on jump host
+    stat:
+      path: "{{ remote_installer_path }}"
+    register: remote_installer
+
+  - name: Installer already present — skipping upload
+    debug:
+      msg: "Installer already present on the jump host."
+    when: remote_installer.stat.exists
+
+  # ── Step 3: upload if missing (rsync) ─────────────────────────────────
+  - name: Upload AAP installer to jump host with rsync
+    synchronize:
+      src:  "{{ local_installer_path }}"
+      dest: "{{ remote_installer_path }}"
+      mode: push
+      use_ssh_args: true
+      checksum: yes
+      rsync_opts:
+        - "--protect-args"
+    delegate_to: localhost
+    vars:
+      ansible_ssh_private_key_file: "{{ lookup('env', 'PRIVATE_KEY_PATH') }}"
+    when: not remote_installer.stat.exists
+
+  - name: Confirm successful upload
+    debug:
+      msg: "AAP installer uploaded to {{ remote_installer_path }}"
+    when: not remote_installer.stat.exists

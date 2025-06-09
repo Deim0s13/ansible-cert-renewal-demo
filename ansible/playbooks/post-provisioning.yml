@@ -20,12 +20,12 @@
 
 # Step 1 – Configure jump host (packages, ruamel.yaml, etc.)
 - name: Step 1 – Configure the Jump Host
-  import_playbook: playbooks/configure-jump-host.yml
+  import_playbook: configure-jump-host.yml
 
 # Step 2 – Upload AAP bundle to jump host
 - name: Step 2 – Upload AAP Disconnected Installer
-  import_playbook: playbooks/upload-aap-installer.yml
+  import_playbook: upload-aap-installer.yml
 
 # Step 3 – Clone project repo to jump host
 - name: Step 3 – Clone Git Repository
-  import_playbook: playbooks/clone-repo-to-jump.yml
+  import_playbook: clone-repo-to-jump.yml

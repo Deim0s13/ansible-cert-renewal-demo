@@ -27,6 +27,7 @@
     src: "{{ aap_bundle_src }}"
     dest: "{{ aap_bundle_dest }}"
     mode: "0644"
+    checksum: yes
   when: not bundle_stat.stat.exists
 
 # ─────────────────────────────────────────────────────────────

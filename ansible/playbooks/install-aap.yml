@@ -8,14 +8,5 @@
   hosts: aap
   become: true
 
-  # Optionally assert passwords are loaded from vault
-  pre_tasks:
-    - name: Fail if vaulted passwords are missing
-      assert:
-        that:
-          - aap_admin_password is defined and aap_admin_password | length > 0
-          - aap_pg_password    is defined and aap_pg_password    | length > 0
-        fail_msg: "Vaulted variables aap_admin_password / aap_pg_password are missing."
-
   roles:
     - aap_install

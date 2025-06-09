@@ -1,18 +1,8 @@
 # Non‑sensitive defaults for the AAP‑install role.
-# Secrets come from the vault file (highest precedence) or from
-# environment variables injected by CI.
+aap_bundle_src: "/var/tmp/Ansible Automation Platform 2.5 Setup.tar.gz" # on jump‑host
+aap_bundle_dest: "/opt/Ansible Automation Platform 2.5 Setup.tar.gz" # on AAP VM
+aap_setup_dir: "/opt/ansible-automation-platform-setup"
 
-# Offline/disconnected registry (edit if you mirror)
 aap_registry_url: registry.redhat.io
-
-# Optional runtime overrides – leave blank in Git
-# CI can supply them via:
-#   export AAP_ADMIN_PASSWORD=…
-#   export AAP_PG_PASSWORD=…
 aap_admin_password: "{{ lookup('env','AAP_ADMIN_PASSWORD') | default('', true) }}"
 aap_pg_password: "{{ lookup('env','AAP_PG_PASSWORD')   | default('', true) }}"
-
-# Bundle locations (edit to match your build script)
-aap_bundle_src: "/var/tmp/aap-2.5-setup-bundle.tar.gz" # on jump‑host
-aap_bundle_dest: "/opt/aap-setup-bundle.tar.gz" # on AAP VM
-aap_setup_dir: "/opt/ansible-automation-platform-setup"

@@ -1,3 +1,4 @@
+---
 - name: Configure Jump Host
   hosts: jump
   become: true
@@ -6,6 +7,7 @@
     ansible_python_interpreter: /usr/bin/python3
 
   tasks:
+    # ── System Update ────────────────────────────────────────
     - name: Update all packages on the jump host
       ansible.builtin.dnf:
         name: '*'
@@ -13,6 +15,7 @@
         update_cache: true
       tags: skip_ansible_lint
 
+    # ── Core Tools ────────────────────────────────────────────
     - name: Ensure base packages are present
       ansible.builtin.package:
         name:
@@ -26,6 +29,7 @@
           - podman
         state: present
 
+    # ── ruamel.yaml Support ──────────────────────────────────
     - name: Try to install ruamel.yaml via dnf
       ansible.builtin.package:
         name: python3-ruamel-yaml
@@ -34,13 +38,13 @@
       failed_when: false
 
     - name: Install ruamel.yaml via pip if dnf not available
-      when: dnf_ruamel is failed or (dnf_ruamel is defined and dnf_ruamel.rc | default(1) != 0)
+      when: dnf_ruamel.failed or (dnf_ruamel.rc is defined and dnf_ruamel.rc != 0)
       ansible.builtin.pip:
         name: ruamel.yaml
         state: present
         executable: /usr/bin/pip3
 
-    - name: Verify ruamel.yaml present
+    - name: Verify ruamel.yaml presence
       ansible.builtin.command: >
         python3 -c "import importlib.util;
                     print('ruamel.yaml found:',
@@ -53,26 +57,31 @@
       ansible.builtin.debug:
         msg: "{{ ruamel_check.stdout.strip() }}"
 
+    # ── Ansible (User Install) ────────────────────────────────
     - name: Check current Ansible version
+      become: false
       ansible.builtin.command: ~/.local/bin/ansible --version
       register: ansible_ver_check
       failed_when: false
       changed_when: false
-      become: false
 
-    - name: Install Ansible 2.16.x under user context if not present
+    - name: Install latest supported Ansible version (>=9.0,<10.0)
       become: false
-      ansible.builtin.shell: /usr/bin/python3.11 -m pip install --user "ansible>=2.16,<2.17"
-      args:
-        executable: /bin/bash
-      when: "'2.16.' not in ansible_ver_check.stdout"
+      ansible.builtin.pip:
+        name: "ansible>=9.0,<10.0"
+        executable: /usr/bin/python3.11 -m pip
+        extra_args: --user
+      when: "'ansible' not in ansible_ver_check.stdout or '9.' not in ansible_ver_check.stdout"
 
+    # ── User Environment Setup ────────────────────────────────
     - name: Ensure ~/.bashrc has updated PATH for local bin
       ansible.builtin.lineinfile:
         path: /home/rheluser/.bashrc
         line: 'export PATH="$HOME/.local/bin:$PATH"'
         state: present
         create: yes
+        owner: rheluser
+        group: rheluser
         mode: '0644'
 
     - name: Ensure ANSIBLE_CONFIG is set in ~/.bashrc
@@ -81,8 +90,19 @@
         line: 'export ANSIBLE_CONFIG="/home/rheluser/ansible-cert-renewal-demo/ansible/ansible.cfg"'
         state: present
         create: yes
+        owner: rheluser
+        group: rheluser
         mode: '0644'
 
-    - name: Jump host ready
+    # ── Final Confirmation ────────────────────────────────────
+    - name: Show installed Ansible version
+      become: false
+      ansible.builtin.command: ~/.local/bin/ansible --version
+      register: final_ansible_ver
+      changed_when: false
+
+    - name: Confirm installation complete
       ansible.builtin.debug:
-        msg: "Jump host packages, Ansible 2.16.x, and Python dependencies are installed."
+        msg: >
+          Jump host is ready.
+          Installed Ansible version: {{ final_ansible_ver.stdout_lines[0] }}

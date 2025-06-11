@@ -22,12 +22,15 @@
     path: "{{ aap_bundle_dest }}"
   register: bundle_stat
 
-- name: Copy bundle from jump‑host to AAP node
-  copy:
+- name: Rsync bundle from jump host to AAP node
+  synchronize:
     src: "{{ aap_bundle_src }}"
     dest: "{{ aap_bundle_dest }}"
-    mode: "0644"
-    checksum: yes
+    mode: push
+    rsync_opts:
+      - "--chmod=0644"
+    use_ssh_args: true
+  delegate_to: jump-host
   when: not bundle_stat.stat.exists
 
 # ─────────────────────────────────────────────────────────────

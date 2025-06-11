@@ -23,7 +23,7 @@
   register: bundle_stat
 
 - name: Rsync bundle from jump host to AAP node
-  synchronize:
+  ansible.builtin.synchronize:
     src: "{{ aap_bundle_src }}"
     dest: "{{ aap_bundle_dest }}"
     mode: push
@@ -31,6 +31,7 @@
       - "--chmod=0644"
     use_ssh_args: true
   delegate_to: jump-host
+  become: true
   when: not bundle_stat.stat.exists
 
 # ─────────────────────────────────────────────────────────────

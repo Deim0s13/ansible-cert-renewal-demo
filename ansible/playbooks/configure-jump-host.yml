@@ -57,6 +57,14 @@
       ansible.builtin.debug:
         msg: "{{ ruamel_check.stdout.strip() }}"
 
+    # ── Confirm pip is installed ──────────────────────────────────
+
+    - name: Ensure pip is installed for Python 3.11
+      ansible.builtin.command: /usr/bin/python3.11 -m ensurepip --upgrade
+      register: ensurepip_result
+      changed_when: "'Successfully installed' in ensurepip_result.stdout"
+      failed_when: ensurepip_result.rc != 0 and 'already satisfied' not in ensurepip_result.stdout
+
     # ── Ansible (User Install) ────────────────────────────────
     - name: Check current Ansible version
       become: false

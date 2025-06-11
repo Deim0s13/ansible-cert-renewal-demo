@@ -18,6 +18,7 @@
         name: '*'
         state: latest
         update_cache: true
+      tags: skip_ansible_lint
 
     # ── Core tools ───────────────────────────────────────────
     - name: Ensure base packages are present
@@ -40,12 +41,11 @@
       failed_when: false
 
     - name: Install ruamel.yaml via pip if dnf not available
-      pip:
+      when: dnf_ruamel is failed or (dnf_ruamel is defined and dnf_ruamel.rc | default(1) != 0)
+      ansible.builtin.pip:
         name: ruamel.yaml
         state: present
         executable: /usr/bin/pip3
-      when: dnf_ruamel is failed or
-            (dnf_ruamel is defined and dnf_ruamel.rc|default(1) != 0)
 
     - name: Verify ruamel.yaml present
       command: >

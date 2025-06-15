@@ -75,10 +75,12 @@
 
     - name: Install latest supported Ansible version (>=9.0,<10.0)
       become: false
-      ansible.builtin.pip:
+      pip:
         name: "ansible>=9.0,<10.0"
         executable: /usr/bin/python3.11
         extra_args: --user
+      environment:
+        PATH: "{{ ansible_env.HOME }}/.local/bin:{{ ansible_env.PATH }}"
       when: "'ansible' not in ansible_ver_check.stdout or '9.' not in ansible_ver_check.stdout"
 
     # ── User Environment Setup ────────────────────────────────

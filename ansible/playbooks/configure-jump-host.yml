@@ -1,4 +1,3 @@
----
 - name: Configure Jump Host
   hosts: jump
   become: true
@@ -42,13 +41,13 @@
       ansible.builtin.pip:
         name: ruamel.yaml
         state: present
-        executable: /usr/bin/pip3
+        executable: /usr/bin/pip3.11
 
     - name: Verify ruamel.yaml presence
       ansible.builtin.command: >
-        python3 -c "import importlib.util;
-                    print('ruamel.yaml found:',
-                    bool(importlib.util.find_spec('ruamel.yaml')))"
+        python3.11 -c "import importlib.util;
+                       print('ruamel.yaml found:',
+                       bool(importlib.util.find_spec('ruamel.yaml')))"
       register: ruamel_check
       changed_when: false
       failed_when: false
@@ -57,15 +56,14 @@
       ansible.builtin.debug:
         msg: "{{ ruamel_check.stdout.strip() }}"
 
-    # ── Confirm pip is installed ──────────────────────────────────
-
+    # ── Confirm pip is installed ─────────────────────────────
     - name: Ensure pip is installed for Python 3.11
       ansible.builtin.command: /usr/bin/python3.11 -m ensurepip --upgrade
       register: ensurepip_result
       changed_when: "'Successfully installed' in ensurepip_result.stdout"
       failed_when: ensurepip_result.rc != 0 and 'already satisfied' not in ensurepip_result.stdout
 
-    # ── Ansible (User Install) ────────────────────────────────
+    # ── Ansible (User Install) ───────────────────────────────
     - name: Check current Ansible version
       become: false
       ansible.builtin.command: ~/.local/bin/ansible --version
@@ -73,23 +71,23 @@
       failed_when: false
       changed_when: false
 
-    - name: Install latest supported Ansible version (>=9.0,<10.0)
+    - name: Install Ansible (>=9.0,<10.0) under user context
       become: false
-      pip:
+      ansible.builtin.pip:
         name: "ansible>=9.0,<10.0"
-        executable: /usr/bin/python3.11
+        executable: /usr/bin/pip3.11
         extra_args: --user
       environment:
         PATH: "{{ ansible_env.HOME }}/.local/bin:{{ ansible_env.PATH }}"
       when: "'ansible' not in ansible_ver_check.stdout or '9.' not in ansible_ver_check.stdout"
 
-    # ── User Environment Setup ────────────────────────────────
+    # ── User Environment Setup ───────────────────────────────
     - name: Ensure ~/.bashrc has updated PATH for local bin
       ansible.builtin.lineinfile:
         path: /home/rheluser/.bashrc
         line: 'export PATH="$HOME/.local/bin:$PATH"'
         state: present
-        create: yes
+        create: true
         owner: rheluser
         group: rheluser
         mode: '0644'
@@ -99,12 +97,12 @@
         path: /home/rheluser/.bashrc
         line: 'export ANSIBLE_CONFIG="/home/rheluser/ansible-cert-renewal-demo/ansible/ansible.cfg"'
         state: present
-        create: yes
+        create: true
         owner: rheluser
         group: rheluser
         mode: '0644'
 
-    # ── Final Confirmation ────────────────────────────────────
+    # ── Final Confirmation ───────────────────────────────────
     - name: Show installed Ansible version
       become: false
       ansible.builtin.command: ~/.local/bin/ansible --version

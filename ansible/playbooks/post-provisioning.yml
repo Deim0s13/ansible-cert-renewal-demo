@@ -14,6 +14,8 @@
     repo_url: "https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
     target_dir: "{{ ansible_user_dir }}/{{ repo_url | basename | regex_replace('\\.git$', '') }}"
 
+  tasks: []
+
 # ─────────────────────────────────────────────────────
 # Step 0 – SSH key
 # ─────────────────────────────────────────────────────
@@ -46,6 +48,9 @@
 - name: Step 4 – Resize AAP Disk from Jump Host
   hosts: jump
   gather_facts: false
+  vars:
+    ansible_user_dir: /home/rheluser
+
   tasks:
     - name: Run resize-disks-aap.yml from the jump host
       ansible.builtin.command:

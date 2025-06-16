@@ -6,6 +6,7 @@
 
 - name: Install Ansible Automation Platform
   hosts: aap
+  gather_facts: false
   become: true
 
   roles:

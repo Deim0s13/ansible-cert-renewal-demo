@@ -55,9 +55,10 @@
     - name: Run resize-disks-aap.yml from the jump host
       ansible.builtin.command:
         cmd: >
-          ansible-playbook -i {{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/inventory/provisioning-hosts
-                           {{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks/resize-disks-aap.yml
+          ansible-playbook
+          -i /home/rheluser/ansible-cert-renewal-demo/ansible/inventory/generated-hosts
+          /home/rheluser/ansible-cert-renewal-demo/ansible/playbooks/resize-disks-aap.yml
       args:
-        chdir: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks"
+        chdir: /home/rheluser/ansible-cert-renewal-demo/ansible/playbooks
       environment:
-        ANSIBLE_CONFIG: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/ansible.cfg"
+        ANSIBLE_CONFIG: /home/rheluser/ansible-cert-renewal-demo/ansible/ansible.cfg

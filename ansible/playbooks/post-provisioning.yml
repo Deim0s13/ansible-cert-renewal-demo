@@ -27,19 +27,27 @@
   import_playbook: configure-jump-host.yml
 
 # ─────────────────────────────────────────────────────
-# Step 2 – Resize and Mount Disks on AAP Host
-# ─────────────────────────────────────────────────────
-- name: Step 4 – Prepare Disk for AAP Installation
-  import_playbook: resize-disks-aap.yml
-
-# ─────────────────────────────────────────────────────
-# Step 3 – Upload AAP bundle to jump host
+# Step 2 – Upload AAP bundle to jump host
 # ─────────────────────────────────────────────────────
 - name: Step 2 – Upload AAP Disconnected Installer
   import_playbook: upload-aap-installer.yml
 
 # ─────────────────────────────────────────────────────
-# Step 4 – Clone project repo to jump host
+# Step 3 – Clone project repo to jump host
 # ─────────────────────────────────────────────────────
 - name: Step 3 – Clone Git Repository
   import_playbook: clone-repo-to-jump.yml
+
+# ─────────────────────────────────────────────────────
+# Step 4 – Trigger AAP Disk Resize (run from jump host)
+# ─────────────────────────────────────────────────────
+- name: Step 4 – Execute resize-disks-aap.yml on jump host to configure AAP
+  hosts: jump
+  gather_facts: false
+  tasks:
+    - name: Run resize-disks-aap.yml from the jump host
+      ansible.builtin.command: >
+        ansible-playbook -i inventory/hosts resize-disks-aap.yml
+      args:
+        chdir: "/home/rheluser/ansible-cert-renewal-demo"
+      become: false

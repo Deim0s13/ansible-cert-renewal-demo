@@ -65,7 +65,7 @@ variable "default_vm_size_windows" {
 variable "default_disk_size_gb" {
   description = "Default size (in GB) of the OS disk for all VMs"
   type        = number
-  default     = 32
+  default     = 64
 }
 
 ##########################################

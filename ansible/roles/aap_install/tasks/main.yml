@@ -26,7 +26,7 @@
     mode: push
     rsync_opts:
       - "--chmod=0644"
-    rsync_path: "sudo -u rheluser rsync"
+    rsync_path: "sudo rsync"
     use_ssh_args: true
   delegate_to: jump-host
   become: false

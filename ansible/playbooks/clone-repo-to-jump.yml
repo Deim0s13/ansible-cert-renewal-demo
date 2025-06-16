@@ -28,6 +28,7 @@
         dest: "{{ repo_clone_path }}"
         version: "{{ repo_version }}"
         update: yes
+        force: true
 
     # ─────────────────────────────────────────────────────
     # Step 3: Confirm Success

@@ -26,8 +26,9 @@
     mode: push
     rsync_opts:
       - "--chmod=0644"
-    rsync_path: "sudo rsync"
     use_ssh_args: true
+    rsync_path: "sudo rsync"
+    dest_user: rheluser
   delegate_to: jump-host
   become: true
   when: not bundle_stat.stat.exists

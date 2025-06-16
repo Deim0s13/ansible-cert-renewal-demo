@@ -1,0 +1,67 @@
+---
+# ─────────────────────────────────────────────────────────────
+# Playbook: resize-disks-aap.yml
+# Purpose : Extend rootvg and mount /opt for AAP installer use
+# Target  : AAP node
+# ─────────────────────────────────────────────────────────────
+
+- name: Resize and mount /opt on AAP node
+  hosts: aap
+  become: true
+  gather_facts: false
+
+  vars:
+    opt_lv_size: 20g
+    opt_mount_point: /opt
+    opt_lv_name: optlv
+    vg_name: rootvg
+
+  tasks:
+
+    # ─────────────────────────────────────────────────────
+    # Step 1: Create Logical Volume for /opt
+    # ─────────────────────────────────────────────────────
+    - name: Create logical volume for /opt
+      lvol:
+        vg: "{{ vg_name }}"
+        lv: "{{ opt_lv_name }}"
+        size: "{{ opt_lv_size }}"
+        state: present
+
+    # ─────────────────────────────────────────────────────
+    # Step 2: Format the LV with XFS
+    # ─────────────────────────────────────────────────────
+    - name: Create filesystem on the new logical volume
+      filesystem:
+        fstype: xfs
+        dev: "/dev/{{ vg_name }}/{{ opt_lv_name }}"
+
+    # ─────────────────────────────────────────────────────
+    # Step 3: Ensure /opt Exists
+    # ─────────────────────────────────────────────────────
+    - name: Ensure /opt directory exists
+      file:
+        path: "{{ opt_mount_point }}"
+        state: directory
+
+    # ─────────────────────────────────────────────────────
+    # Step 4: Mount /opt
+    # ─────────────────────────────────────────────────────
+    - name: Mount /opt
+      mount:
+        path: "{{ opt_mount_point }}"
+        src: "/dev/{{ vg_name }}/{{ opt_lv_name }}"
+        fstype: xfs
+        opts: defaults
+        state: mounted
+
+    # ─────────────────────────────────────────────────────
+    # Step 5: Persist /opt Mount in fstab
+    # ─────────────────────────────────────────────────────
+    - name: Make /opt mount persistent
+      mount:
+        path: "{{ opt_mount_point }}"
+        src: "/dev/{{ vg_name }}/{{ opt_lv_name }}"
+        fstype: xfs
+        opts: defaults
+        state: present

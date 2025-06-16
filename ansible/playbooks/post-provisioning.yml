@@ -1,8 +1,8 @@
 ---
 # ─────────────────────────────────────────────────────────────
 # Playbook: post-provision.yml
-# Purpose : Orchestrate jump-host prep, bundle upload, repo clone
-#           (AAP install happens later when you run install-aap.yml)
+# Purpose : Orchestrate jump-host prep, bundle upload, repo clone,
+#           and disk provisioning for the AAP host.
 # ─────────────────────────────────────────────────────────────
 
 - name: Post-Provisioning Automation on Jump Host
@@ -12,20 +12,34 @@
     target_dir: "{{ ansible_user_dir }}/{{ repo_url | basename | regex_replace('\\.git$', '') }}"
     private_key_path: "{{ private_key_path }}"
 
+# ─────────────────────────────────────────────────────
 # Step 0 – SSH key
+# ─────────────────────────────────────────────────────
 - name: Step 0 – Inject SSH Private Key to Jump Host
   import_playbook: copy-private-key.yml
   vars:
     private_key_path: "{{ private_key_path }}"
 
+# ─────────────────────────────────────────────────────
 # Step 1 – Configure jump host (packages, ruamel.yaml, etc.)
+# ─────────────────────────────────────────────────────
 - name: Step 1 – Configure the Jump Host
   import_playbook: configure-jump-host.yml
 
+# ─────────────────────────────────────────────────────
 # Step 2 – Upload AAP bundle to jump host
+# ─────────────────────────────────────────────────────
 - name: Step 2 – Upload AAP Disconnected Installer
   import_playbook: upload-aap-installer.yml
 
+# ─────────────────────────────────────────────────────
 # Step 3 – Clone project repo to jump host
+# ─────────────────────────────────────────────────────
 - name: Step 3 – Clone Git Repository
   import_playbook: clone-repo-to-jump.yml
+
+# ─────────────────────────────────────────────────────
+# Step 4 – Resize and Mount Disks on AAP Host
+# ─────────────────────────────────────────────────────
+- name: Step 4 – Prepare Disk for AAP Installation
+  import_playbook: resize-disks-aap.yml

@@ -1,12 +1,17 @@
+---
 - name: Configure Jump Host
   hosts: jump
   become: true
   gather_facts: false
+
   vars:
     ansible_python_interpreter: /usr/bin/python3
 
   tasks:
-    # ── System Update ────────────────────────────────────────
+
+    # ─────────────────────────────────────────────────────
+    # System Update
+    # ─────────────────────────────────────────────────────
     - name: Update all packages on the jump host
       ansible.builtin.dnf:
         name: '*'
@@ -14,7 +19,9 @@
         update_cache: true
       tags: skip_ansible_lint
 
-    # ── Core Tools ────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────
+    # Core Tools
+    # ─────────────────────────────────────────────────────
     - name: Ensure base packages are present
       ansible.builtin.package:
         name:
@@ -28,7 +35,9 @@
           - podman
         state: present
 
-    # ── ruamel.yaml Support ──────────────────────────────────
+    # ─────────────────────────────────────────────────────
+    # ruamel.yaml Support
+    # ─────────────────────────────────────────────────────
     - name: Try to install ruamel.yaml via dnf
       ansible.builtin.package:
         name: python3-ruamel-yaml
@@ -56,14 +65,18 @@
       ansible.builtin.debug:
         msg: "{{ ruamel_check.stdout.strip() }}"
 
-    # ── Confirm pip is installed ─────────────────────────────
+    # ─────────────────────────────────────────────────────
+    # Confirm pip is installed
+    # ─────────────────────────────────────────────────────
     - name: Ensure pip is installed for Python 3.11
       ansible.builtin.command: /usr/bin/python3.11 -m ensurepip --upgrade
       register: ensurepip_result
       changed_when: "'Successfully installed' in ensurepip_result.stdout"
       failed_when: ensurepip_result.rc != 0 and 'already satisfied' not in ensurepip_result.stdout
 
-    # ── Ansible (User Install) ───────────────────────────────
+    # ─────────────────────────────────────────────────────
+    # Ansible (User Install)
+    # ─────────────────────────────────────────────────────
     - name: Check current Ansible version
       become: false
       ansible.builtin.command: ~/.local/bin/ansible --version
@@ -81,7 +94,9 @@
         PATH: "{{ ansible_env.HOME }}/.local/bin:{{ ansible_env.PATH }}"
       when: "'ansible' not in ansible_ver_check.stdout or '9.' not in ansible_ver_check.stdout"
 
-    # ── User Environment Setup ───────────────────────────────
+    # ─────────────────────────────────────────────────────
+    # User Environment Setup
+    # ─────────────────────────────────────────────────────
     - name: Ensure ~/.bashrc has updated PATH for local bin
       ansible.builtin.lineinfile:
         path: /home/rheluser/.bashrc
@@ -102,7 +117,9 @@
         group: rheluser
         mode: '0644'
 
-    # ── Final Confirmation ───────────────────────────────────
+    # ─────────────────────────────────────────────────────
+    # Final Confirmation
+    # ─────────────────────────────────────────────────────
     - name: Show installed Ansible version
       become: false
       ansible.builtin.command: ~/.local/bin/ansible --version

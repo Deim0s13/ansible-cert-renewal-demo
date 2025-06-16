@@ -9,8 +9,10 @@
   hosts: jump
   gather_facts: false
   vars:
-    target_dir: "{{ ansible_user_dir }}/{{ repo_url | basename | regex_replace('\\.git$', '') }}"
+    ansible_user_dir: /home/rheluser
     private_key_path: "{{ private_key_path }}"
+    repo_url: "https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
+    target_dir: "{{ ansible_user_dir }}/{{ repo_url | basename | regex_replace('\\.git$', '') }}"
 
 # ─────────────────────────────────────────────────────
 # Step 0 – SSH key
@@ -47,8 +49,9 @@
   tasks:
     - name: Run resize-disks-aap.yml from the jump host
       ansible.builtin.command:
-        cmd: ansible-playbook -i {{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/inventory/provisioning-hosts \
-                              {{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks/resize-disks-aap.yml
+        cmd: >
+          ansible-playbook -i {{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/inventory/provisioning-hosts
+                           {{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks/resize-disks-aap.yml
       args:
         chdir: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks"
       environment:

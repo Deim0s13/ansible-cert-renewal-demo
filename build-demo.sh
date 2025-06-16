@@ -50,7 +50,7 @@ ADMIN_USERNAME="rheluser"
 SSH_KEY_PATH="$HOME/.ssh/ansible-demo-key.pub"
 PRIVATE_KEY_PATH="$HOME/.ssh/ansible-demo-key"
 export PRIVATE_KEY_PATH # Exporting so ansible-playbook can pick it up if needed, though passing via -e is more explicit
-INSTALLER_PATH="$ROOT_DIR/downloads/Ansible Automation Platform 2.5 Setup.tar.gz"
+INSTALLER_PATH="$ROOT_DIR/downloads/aap-setup-2.5.tar.gz"
 GIT_REPO_URL="https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
 
 # ───────────────────────────────────────

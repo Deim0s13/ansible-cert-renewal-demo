@@ -12,10 +12,10 @@
 
   vars:
     # ── Local path on the control node (adjust as needed) ──
-    local_installer_path: "{{ playbook_dir }}/../../downloads/Ansible Automation Platform 2.5 Setup.tar.gz"
+    local_installer_path: "{{ playbook_dir }}/../../downloads/aap-setup-2.5.tar.gz"
 
     # ── Destination path on the jump host ───────────────────
-    remote_installer_path: "/var/tmp/Ansible Automation Platform 2.5 Setup.tar.gz"
+    remote_installer_path: "/var/tmp/aap-setup-2.5.tar.gz"
 
   tasks:
     # Validate bundle exists locally ---------------------
@@ -27,7 +27,7 @@
 
     - name: Abort if the installer is missing locally
       fail:
-        msg: "❌ AAP bundle not found at {{ local_installer_path }}."
+        msg: "AAP bundle not found at {{ local_installer_path }}."
       when: not local_bundle.stat.exists
       delegate_to: localhost
 
@@ -58,4 +58,4 @@
         msg: >
           {{ 'Bundle uploaded to ' ~ remote_installer_path
              if not remote_bundle.stat.exists
-             else '✔ Bundle already present on jump host' }}
+             else 'Bundle already present on jump host' }}

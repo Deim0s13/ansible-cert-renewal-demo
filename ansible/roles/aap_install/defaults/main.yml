@@ -1,7 +1,7 @@
 # Non‑sensitive defaults for the AAP‑install role.
 aap_bundle_src: "/var/tmp/aap-setup-2.5.tar.gz" # on jump‑host
-aap_bundle_dest: "/opt/aap-setup-2.5.tar.gz" # on AAP VM
-aap_setup_dir: "/opt/ansible-automation-platform-setup"
+aap_bundle_dest: "/var/opt/aap-setup-2.5.tar.gz" # on AAP VM
+aap_setup_dir: "/var/opt/ansible-automation-platform-setup"
 
 aap_registry_url: registry.redhat.io
 aap_admin_password: "{{ lookup('env','AAP_ADMIN_PASSWORD') | default('', true) }}"

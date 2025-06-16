@@ -8,9 +8,9 @@
       - unzip
     state: present
 
-- name: Ensure /opt exists
-  ansible.builtin.file:
-    path: "/opt"
+- name: Ensure /var/opt exists
+  file:
+    path: "/var/opt"
     state: directory
     mode: "0755"
 

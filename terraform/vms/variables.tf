@@ -1,7 +1,7 @@
-##########################################
+# ───────────────────────────────────
 # Shared Variables for All VMs
 # Supports both Linux and Windows modules
-##########################################
+# ───────────────────────────────────
 
 variable "location" {
   description = "The Azure region where all VMs will be deployed"
@@ -23,9 +23,9 @@ variable "random_suffix" {
   type        = string
 }
 
-##########################################
+# ───────────────────────────────────
 # Network Security Group IDs
-##########################################
+# ───────────────────────────────────
 
 variable "linux_nsg_id" {
   description = "The ID of the shared NSG used by Linux-based VMs"
@@ -37,18 +37,18 @@ variable "windows_nsg_id" {
   type        = string
 }
 
-##########################################
+# ───────────────────────────────────
 # Linux-Specific Inputs
-##########################################
+# ───────────────────────────────────
 
 variable "admin_ssh_public_key" {
   description = "The SSH public key used for accessing Linux VMs"
   type        = string
 }
 
-##########################################
+# ───────────────────────────────────
 # Optional Defaults for All VMs (Extendable)
-##########################################
+# ───────────────────────────────────
 
 variable "default_vm_size_linux" {
   description = "Default VM size for Linux-based VMs"
@@ -68,9 +68,9 @@ variable "default_disk_size_gb" {
   default     = 64
 }
 
-##########################################
+# ───────────────────────────────────
 # Windows-Specific Inputs
-##########################################
+# ───────────────────────────────────
 
 variable "admin_username" {
   description = "The local administrator username for Windows VMs"

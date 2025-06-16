@@ -1,19 +1,19 @@
-##########################################
+# ───────────────────────────────────
 # Azure Provider Configuration is in versions.tf
 # This file defines the core networking and infrastructure for the demo environment
-##########################################
+# ───────────────────────────────────
 
-##########################################
+# ───────────────────────────────────
 # Create a resource group to hold all demo resources
-##########################################
+# ───────────────────────────────────
 resource "azurerm_resource_group" "main" {
   name     = var.resource_group_name
   location = var.location
 }
 
-##########################################
+# ───────────────────────────────────
 # Create virtual network with a /16 addresss space
-##########################################
+# ───────────────────────────────────
 resource "azurerm_virtual_network" "main" {
   name                = "cert-net"
   address_space       = ["10.0.0.0/16"]
@@ -21,9 +21,9 @@ resource "azurerm_virtual_network" "main" {
   resource_group_name = azurerm_resource_group.main.name
 }
 
-##########################################
+# ───────────────────────────────────
 # create the main subnet where demo VMs will reside
-##########################################
+# ───────────────────────────────────
 resource "azurerm_subnet" "main" {
   name                 = "cert-subnet"
   resource_group_name  = azurerm_resource_group.main.name
@@ -31,9 +31,9 @@ resource "azurerm_subnet" "main" {
   address_prefixes     = ["10.0.1.0/24"]
 }
 
-##########################################
+# ───────────────────────────────────
 # RHEL Jump Host VM (Direct SSH Access)
-##########################################
+# ───────────────────────────────────
 
 resource "azurerm_network_interface" "jump" {
   name                = "jump-host-nic"
@@ -92,11 +92,11 @@ resource "azurerm_linux_virtual_machine" "jump" {
   }
 }
 
-##########################################
+# ───────────────────────────────────
 # Network Security Group (NSG) for Jump Host
 # Allows inbound SSH (port 22) from any source temporarily
 # In production, this should be restricted or replaced with VPN or Bastion
-##########################################
+# ───────────────────────────────────
 
 resource "azurerm_network_security_group" "jump" {
   name                = "jump-host-nsg"
@@ -120,20 +120,20 @@ resource "azurerm_network_security_group" "jump" {
   }
 }
 
-##########################################
+# ───────────────────────────────────
 # Associate NSG with Jump Host NIC
-##########################################
+# ───────────────────────────────────
 
 resource "azurerm_network_interface_security_group_association" "jump" {
   network_interface_id      = azurerm_network_interface.jump.id
   network_security_group_id = azurerm_network_security_group.jump.id
 }
 
-##########################################
+# ───────────────────────────────────
 # Remote Execution: Install Ansible on Jump Host
 # This uses Terraform's null_resource and remote-exec provisioner
 # to SSH into the jump host and install Ansible automatically.
-##########################################
+# ───────────────────────────────────
 
 resource "null_resource" "install_ansible_on_jump" {
   # Ensure the jump host is created before this runs

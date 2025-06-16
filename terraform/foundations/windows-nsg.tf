@@ -1,8 +1,8 @@
-##########################################
+# ───────────────────────────────────
 # Shared NSG for Windows-based VMs
 # - Used by: win-web, ad-pki
 # - Allows RDP, HTTP, and optional domain services
-##########################################
+# ───────────────────────────────────
 
 resource "azurerm_network_security_group" "windows" {
   name                = "windows-vm-nsg"

@@ -1,9 +1,9 @@
-##########################################
+# ───────────────────────────────────
 # Windows VM Module
 # - NIC with static IP
 # - Attaches to shared NSG
 # - Local admin user with secure password
-##########################################
+# ───────────────────────────────────
 
 # Create NIC
 resource "azurerm_network_interface" "nic" {

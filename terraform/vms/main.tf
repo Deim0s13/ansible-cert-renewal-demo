@@ -1,9 +1,11 @@
-##########################################
+# ───────────────────────────────────
 # Main Terraform File for All VMs
 # - Uses reusable modules
-##########################################
+# ───────────────────────────────────
 
+# ───────────────────────────────────
 # RHEL Web Server (Apache/Nginx demo site)
+# ───────────────────────────────────
 module "rhel_web" {
   source               = "../modules/linux-vm"
   name                 = "rhel-web"
@@ -16,7 +18,9 @@ module "rhel_web" {
   admin_ssh_public_key = var.admin_ssh_public_key
 }
 
+# ───────────────────────────────────
 # Ansible Automation Platform Controller
+# ───────────────────────────────────
 module "aap" {
   source               = "../modules/linux-vm"
   name                 = "aap"
@@ -29,7 +33,9 @@ module "aap" {
   admin_ssh_public_key = var.admin_ssh_public_key
 }
 
+# ───────────────────────────────────
 # Windows Web Server (IIS with certs)
+# ───────────────────────────────────
 module "win_web" {
   source              = "../modules/windows-vm"
   name                = "win-web"
@@ -42,7 +48,9 @@ module "win_web" {
   admin_password      = var.admin_password
 }
 
+# ───────────────────────────────────
 # AD + PKI Server (Domain Controller and Certificate Authority)
+# ───────────────────────────────────
 module "ad_pki" {
   source              = "../modules/windows-vm"
   name                = "ad-pki"

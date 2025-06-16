@@ -1,88 +1,84 @@
 ---
-- name: Ensure prerequisite RPMs are present
-  package:
-    name:
-      - python3
-      - podman
-      - tar
-      - unzip
-    state: present
-
-- name: Ensure /opt exists
-  file:
-    path: "/opt"
-    state: directory
-    mode: "0755"
-
-# ─────────────────────────────────────────────────────────────
-# Copy the bundle only if it is not already on the AAP VM
-# ─────────────────────────────────────────────────────────────
-- name: Check if bundle already exists on AAP node
-  stat:
-    path: "{{ aap_bundle_dest }}"
-  register: bundle_stat
-
-- name: Rsync bundle from jump host to AAP node
-  ansible.builtin.synchronize:
-    src: "{{ aap_bundle_src }}"
-    dest: "{{ aap_bundle_dest }}"
-    mode: push
-    rsync_opts:
-      - "--chmod=0644"
-    use_ssh_args: true
-  delegate_to: jump-host
+- name: Install Ansible Automation Platform on target node
+  hosts: aap
   become: true
-  when: not bundle_stat.stat.exists
+  gather_facts: false
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
 
-# ─────────────────────────────────────────────────────────────
-# Extract bundle
-# ─────────────────────────────────────────────────────────────
-- name: Check if setup directory already extracted
-  stat:
-    path: "{{ aap_setup_dir }}"
-  register: setup_dir_stat
+  tasks:
+    - name: Ensure prerequisite RPMs are present
+      ansible.builtin.package:
+        name:
+          - python3
+          - podman
+          - tar
+          - unzip
+        state: present
 
-- name: Extract bundle on AAP node
-  unarchive:
-    src: "{{ aap_bundle_dest }}"
-    dest: "/opt"
-    remote_src: yes
-  when: not setup_dir_stat.stat.exists
+    - name: Ensure /opt exists
+      ansible.builtin.file:
+        path: "/opt"
+        state: directory
+        mode: "0755"
 
-# ─────────────────────────────────────────────────────────────
-# Drop single‑node inventory file (secrets hidden from logs)
-# ─────────────────────────────────────────────────────────────
-- name: Create single‑node inventory
-  copy:
-    dest: "{{ aap_setup_dir }}/inventory"
-    mode: "0600"
-    content: |
-      [automationcontroller]
-      {{ inventory_hostname }}
+    - name: Check if bundle already exists on AAP node
+      ansible.builtin.stat:
+        path: "{{ aap_bundle_dest }}"
+      register: bundle_stat
 
-      [all:vars]
-      admin_password='{{ aap_admin_password }}'
-      pg_host=''
-      pg_port='5432'
-      pg_database='awx'
-      pg_username='awx'
-      pg_password='{{ aap_pg_password }}'
-      registry_url='{{ aap_registry_url }}'
-  no_log: true
+    - name: Rsync bundle from jump host to AAP node
+      ansible.builtin.synchronize:
+        src: "{{ aap_bundle_src }}"
+        dest: "{{ aap_bundle_dest }}"
+        mode: push
+        rsync_opts:
+          - "--chmod=0644"
+        rsync_path: "sudo rsync"
+        use_ssh_args: true
+      delegate_to: jump-host
+      when: not bundle_stat.stat.exists
 
-# ─────────────────────────────────────────────────────────────
-# Run the installer
-# ─────────────────────────────────────────────────────────────
-- name: Execute ./setup.sh on the AAP VM
-  command: ./setup.sh
-  args:
-    chdir: "{{ aap_setup_dir }}"
-  register: aap_install
-  changed_when: "'Complete' in aap_install.stdout"
-  environment:
-    ANSIBLE_FORCE_COLOR: "true"
-  no_log: true # prevents secret leakage in verbose output
+    - name: Check if setup directory already extracted
+      ansible.builtin.stat:
+        path: "{{ aap_setup_dir }}"
+      register: setup_dir_stat
 
-- name: Show tail of installer log (harmless)
-  debug:
-    var: aap_install.stdout_lines[-20:]
+    - name: Extract bundle on AAP node
+      ansible.builtin.unarchive:
+        src: "{{ aap_bundle_dest }}"
+        dest: "/opt"
+        remote_src: true
+      when: not setup_dir_stat.stat.exists
+
+    - name: Create single-node inventory
+      ansible.builtin.copy:
+        dest: "{{ aap_setup_dir }}/inventory"
+        mode: "0600"
+        content: |
+          [automationcontroller]
+          {{ inventory_hostname }}
+
+          [all:vars]
+          admin_password='{{ aap_admin_password }}'
+          pg_host=''
+          pg_port='5432'
+          pg_database='awx'
+          pg_username='awx'
+          pg_password='{{ aap_pg_password }}'
+          registry_url='{{ aap_registry_url }}'
+      no_log: true
+
+    - name: Execute ./setup.sh on the AAP VM
+      ansible.builtin.command: ./setup.sh
+      args:
+        chdir: "{{ aap_setup_dir }}"
+      register: aap_install
+      changed_when: "'Complete' in aap_install.stdout"
+      environment:
+        ANSIBLE_FORCE_COLOR: "true"
+      no_log: true
+
+    - name: Show tail of installer log (harmless)
+      ansible.builtin.debug:
+        var: aap_install.stdout_lines[-20:]

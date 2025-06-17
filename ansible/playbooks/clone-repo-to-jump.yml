@@ -19,14 +19,14 @@
         state: present
 
     # ──────────────────────────────────────────────
-    # Step 2: Check if repo already exists
+    # Step 2: Check if repository already exists
     # ──────────────────────────────────────────────
-    - name: Check if .git directory exists in the repo path
+    - name: Check if repository already exists
+      become: true
+      become_user: rheluser
       stat:
         path: "{{ repo_clone_path }}/.git"
       register: git_repo_status
-      become: true
-      become_user: rheluser
 
     # ──────────────────────────────────────────────
     # Step 3a: Clone repository if it doesn't exist
@@ -36,7 +36,6 @@
         repo: "{{ git_repo_url }}"
         dest: "{{ repo_clone_path }}"
         version: "{{ repo_version }}"
-        force: yes
       become: true
       become_user: rheluser
       when: not git_repo_status.stat.exists

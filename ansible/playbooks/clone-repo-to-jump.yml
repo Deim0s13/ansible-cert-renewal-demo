@@ -19,7 +19,17 @@
         state: present
 
     # ──────────────────────────────────────────────
-    # Step 2a: Clone repository if not already present
+    # Step 2: Check if repo already exists
+    # ──────────────────────────────────────────────
+    - name: Check if .git directory exists in the repo path
+      stat:
+        path: "{{ repo_clone_path }}/.git"
+      register: git_repo_status
+      become: true
+      become_user: rheluser
+
+    # ──────────────────────────────────────────────
+    # Step 3a: Clone repository if it doesn't exist
     # ──────────────────────────────────────────────
     - name: Clone repository if it doesn't exist
       git:
@@ -29,22 +39,22 @@
         force: yes
       become: true
       become_user: rheluser
-      when: not (repo_clone_path is exists and lookup('ansible.builtin.file', repo_clone_path + '/.git', errors='ignore') is defined)
+      when: not git_repo_status.stat.exists
 
     # ──────────────────────────────────────────────
-    # Step 2b: Pull latest changes if repo already exists
+    # Step 3b: Pull latest changes if repo already exists
     # ──────────────────────────────────────────────
     - name: Pull latest changes from repository
       become: true
       become_user: rheluser
       shell: |
-        cd "{{ repo_clone_path }}" && git pull origin {{ repo_version }}
+        git pull origin {{ repo_version }}
       args:
         chdir: "{{ repo_clone_path }}"
-      when: repo_clone_path is exists and lookup('ansible.builtin.file', repo_clone_path + '/.git', errors='ignore') is defined
+      when: git_repo_status.stat.exists
 
     # ──────────────────────────────────────────────
-    # Step 3: Confirm Git repository is available
+    # Step 4: Confirm Git repository is available
     # ──────────────────────────────────────────────
     - name: Confirm Git repository is available on Jump Host
       debug:

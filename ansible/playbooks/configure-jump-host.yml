@@ -118,6 +118,17 @@
         mode: '0644'
 
     # ─────────────────────────────────────────────────────
+    # Ensure destination directory exists on jump host
+    # ─────────────────────────────────────────────────────
+    - name: Ensure inventory directory exists on jump host
+      ansible.builtin.file:
+        path: /home/rheluser/ansible-cert-renewal-demo/ansible/inventory
+        state: directory
+        owner: rheluser
+        group: rheluser
+        mode: '0755'
+
+    # ─────────────────────────────────────────────────────
     # Copy generated-hosts inventory file to jump host
     # ─────────────────────────────────────────────────────
     - name: Copy generated-hosts to jump host

@@ -10,14 +10,15 @@
   gather_facts: false
   vars:
     ansible_user_dir: /home/rheluser
-    private_key_path: "{{ private_key_path }}"
+    # Ensure private_key_path is defined if not passed via CLI
+    private_key_path: "{{ private_key_path | default('~/.ssh/ansible-demo-key') }}"
     repo_url: "https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
     target_dir: "{{ ansible_user_dir }}/{{ repo_url | basename | regex_replace('\\.git$', '') }}"
 
-  tasks: []
+  tasks: [] # This is usually an empty tasks block when importing other playbooks
 
 # ─────────────────────────────────────────────────────
-# Step 0 – SSH key
+# Step 0 – SSH key (Handles private key copy and known_hosts update on jump host)
 # ─────────────────────────────────────────────────────
 - name: Step 0 – Inject SSH Private Key to Jump Host
   import_playbook: copy-private-key.yml
@@ -37,7 +38,7 @@
   import_playbook: upload-aap-installer.yml
 
 # ─────────────────────────────────────────────────────
-# Step 3 – Clone project repo to jump host
+# Step 3 – Clone project repo to jump host (Ensures repo and its contents are ready)
 # ─────────────────────────────────────────────────────
 - name: Step 3 – Clone Git Repository
   import_playbook: clone-repo-to-jump.yml
@@ -49,6 +50,7 @@
   hosts: jump
   gather_facts: false
   vars:
+    # Redeclaring for clarity, though it's already defined at the play level
     ansible_user_dir: /home/rheluser
 
   tasks:

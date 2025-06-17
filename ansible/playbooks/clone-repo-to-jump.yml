@@ -20,7 +20,34 @@
         state: present
 
     # ─────────────────────────────────────────────────────
-    # Step 2: Ensure Git repository is present and up-to-date
+    # Step 2: Check if destination path exists and is a Git repo
+    # ─────────────────────────────────────────────────────
+    - name: Stat the potential repository path
+      stat:
+        path: "{{ repo_clone_path }}"
+      register: repo_path_stat
+
+    - name: Check if .git subdirectory exists within the potential repository
+      stat:
+        path: "{{ repo_clone_path }}/.git"
+      register: git_dir_stat
+      # Only run this if the repo_clone_path actually exists and is a directory
+      when: repo_path_stat.stat.exists and repo_path_stat.stat.isdir
+
+    # ─────────────────────────────────────────────────────
+    # Step 3: Clean up if directory exists but is NOT a Git repo
+    # ─────────────────────────────────────────────────────
+    - name: Remove non-git directory if it exists and is not a Git repo
+      ansible.builtin.file:
+        path: "{{ repo_clone_path }}"
+        state: absent
+      when: >
+        repo_path_stat.stat.exists and
+        repo_path_stat.stat.isdir and
+        not git_dir_stat.stat.exists # This condition ensures .git doesn't exist
+
+    # ─────────────────────────────────────────────────────
+    # Step 4: Ensure Git repository is present and up-to-date
     # ─────────────────────────────────────────────────────
     - name: Clone or pull Git repository
       become: true
@@ -29,12 +56,11 @@
         repo: "{{ git_repo_url }}"
         dest: "{{ repo_clone_path }}"
         version: "{{ repo_version }}"
-        update: true  # This is the key: it handles both cloning and pulling
-        force: yes    # Add force: yes to ensure it can overwrite if the directory is not a proper git repo.
-                      # Use with caution, but it helps recover from corrupted states.
+        update: true  # This will clone if dest is empty/non-existent, and pull if it's a valid repo
+        # force: yes  # You can keep this if you want to aggressively overwrite local changes, but it's not directly related to the "destination exists and is not empty" error for initial clones.
 
     # ─────────────────────────────────────────────────────
-    # Step 3: Confirm Repo Path
+    # Step 5: Confirm Repo Path
     # ─────────────────────────────────────────────────────
     - name: Confirm Git repository is available on Jump Host
       debug:

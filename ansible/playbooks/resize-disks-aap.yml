@@ -40,11 +40,12 @@
         size: "{{ opt_lv_size }}"
         state: present
       register: create_lv_result
+      failed_when: create_lv_result.failed is defined and create_lv_result.failed
+      ignore_errors: false
 
-    - name: Confirm LV creation
+    - name: Print LV creation result
       debug:
         var: create_lv_result
-      when: create_lv_result is defined
 
     # ─────────────────────────────────────────────────────
     # Step 2: Format the LV with XFS

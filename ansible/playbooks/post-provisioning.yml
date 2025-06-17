@@ -54,13 +54,15 @@
   tasks:
     - name: Run resize-disks-aap.yml from the jump host
       ansible.builtin.shell: |
-        export ANSIBLE_CONFIG={{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/ansible.cfg
+        export ANSIBLE_CONFIG="{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/ansible.cfg"
         export PATH="$HOME/.local/bin:$PATH"
-        ansible-playbook -i {{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/inventory/generated-hosts \
-                         {{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks/resize-disks-aap.yml \
-                         -e ansible_ssh_private_key_file={{ ansible_user_dir }}/.ssh/ansible-demo-key \
-                         -e ansible_user=rheluser \
-                         -e ansible_python_interpreter=/usr/bin/python3 \
-                         -e ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+        ansible-playbook \
+          -i "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/inventory/generated-hosts" \
+          "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks/resize-disks-aap.yml" \
+          -e "ansible_ssh_private_key_file={{ ansible_user_dir }}/.ssh/ansible-demo-key" \
+          -e "ansible_user=rheluser" \
+          -e "ansible_python_interpreter=/usr/bin/python3" \
+          -e 'ansible_ssh_common_args=-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
       args:
         chdir: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks"
+      changed_when: false

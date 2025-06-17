@@ -1,3 +1,4 @@
+---
 - name: Clone Ansible Demo Repository onto Jump Host
   hosts: jump
   gather_facts: false
@@ -19,38 +20,25 @@
         state: present
 
     # ──────────────────────────────────────────────
-    # Step 2: Check if repository already exists
+    # Step 2: Check if repo already exists
     # ──────────────────────────────────────────────
     - name: Check if repository already exists
-      become: true
-      become_user: rheluser
-      stat:
+      ansible.builtin.stat:
         path: "{{ repo_clone_path }}/.git"
-      register: git_repo_status
+      register: repo_exists
 
     # ──────────────────────────────────────────────
-    # Step 3a: Clone repository if it doesn't exist
+    # Step 3: Clone or update repository
     # ──────────────────────────────────────────────
-    - name: Clone repository if it doesn't exist
+    - name: Clone or update Git repository on Jump Host
       git:
         repo: "{{ git_repo_url }}"
         dest: "{{ repo_clone_path }}"
         version: "{{ repo_version }}"
+        update: yes
+        force: no
       become: true
       become_user: rheluser
-      when: not git_repo_status.stat.exists
-
-    # ──────────────────────────────────────────────
-    # Step 3b: Pull latest changes if repo already exists
-    # ──────────────────────────────────────────────
-    - name: Pull latest changes from repository
-      become: true
-      become_user: rheluser
-      shell: |
-        git pull origin {{ repo_version }}
-      args:
-        chdir: "{{ repo_clone_path }}"
-      when: git_repo_status.stat.exists
 
     # ──────────────────────────────────────────────
     # Step 4: Confirm Git repository is available

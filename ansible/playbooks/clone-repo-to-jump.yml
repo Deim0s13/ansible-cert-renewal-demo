@@ -1,6 +1,7 @@
 ---
-- name: Clone or update Git repository on Jump Host
+- name: Clone Ansible Demo Repository onto Jump Host
   hosts: jump
+  become: true
   gather_facts: false
 
   vars:
@@ -14,49 +15,33 @@
     # Step 1: Ensure Git is Available
     # ─────────────────────────────────────────────────────
     - name: Ensure Git is installed on the Jump Host
-      become: true
       package:
         name: git
         state: present
 
     # ─────────────────────────────────────────────────────
-    # Step 2: Check if repository already exists
+    # Step 2: Check if Repo Already Exists
     # ─────────────────────────────────────────────────────
     - name: Check if Git repository already exists
-      ansible.builtin.stat:
+      stat:
         path: "{{ repo_clone_path }}/.git"
       register: repo_exists
 
     # ─────────────────────────────────────────────────────
-    # Step 3a: Clone repository if it doesn't exist
+    # Step 3: Clone Repo if Not Present
     # ─────────────────────────────────────────────────────
     - name: Clone Git repository (if not present)
-      ansible.builtin.git:
+      git:
         repo: "{{ git_repo_url }}"
         dest: "{{ repo_clone_path }}"
         version: "{{ repo_version }}"
-        force: true
-      become: true
+        update: no
       become_user: rheluser
       when: not repo_exists.stat.exists
 
     # ─────────────────────────────────────────────────────
-    # Step 3b: Pull latest changes if it already exists
-    # ─────────────────────────────────────────────────────
-    - name: Pull latest changes from Git repository
-      ansible.builtin.git:
-        repo: "{{ git_repo_url }}"
-        dest: "{{ repo_clone_path }}"
-        version: "{{ repo_version }}"
-        update: yes
-        force: false
-      become: true
-      become_user: rheluser
-      when: repo_exists.stat.exists
-
-    # ─────────────────────────────────────────────────────
-    # Step 4: Confirm repository is available
+    # Step 4: Confirm Repository Path
     # ─────────────────────────────────────────────────────
     - name: Confirm Git repository is available on Jump Host
-      ansible.builtin.debug:
+      debug:
         msg: "Repository is now available at {{ repo_clone_path }}"

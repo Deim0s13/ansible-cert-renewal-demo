@@ -29,6 +29,8 @@
         version: "{{ repo_version }}"
         update: yes
         force: true
+      become: true
+      become_user: rheluser
 
     # ─────────────────────────────────────────────────────
     # Step 3: Confirm Success

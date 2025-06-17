@@ -59,7 +59,7 @@
         # You can keep the PATH export if other commands in your shell script might need it,
         # but for ansible-playbook itself, using the full path is more reliable.
         # export PATH="$HOME/.local/bin:$PATH"
-        {{ ansible_user_dir }}/.local/bin/ansible-playbook \ # <--- UPDATED THIS LINE
+        {{ ansible_user_dir }}/.local/bin/ansible-playbook \
           -i "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/inventory/generated-hosts" \
           "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks/resize-disks-aap.yml" \
           -e "ansible_ssh_private_key_file={{ ansible_user_dir }}/.ssh/ansible-demo-key" \

@@ -10,39 +10,29 @@
 
   tasks:
 
-    # ──────────────────────────────────────────────
-    # Step 1: Ensure Git is Installed
-    # ──────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────
+    # Step 1: Ensure Git is Available
+    # ─────────────────────────────────────────────────────
     - name: Ensure Git is installed on the Jump Host
       become: true
       package:
         name: git
         state: present
 
-    # ──────────────────────────────────────────────
-    # Step 2: Check if repo already exists
-    # ──────────────────────────────────────────────
-    - name: Check if repository already exists
-      ansible.builtin.stat:
-        path: "{{ repo_clone_path }}/.git"
-      register: repo_exists
-
-    # ──────────────────────────────────────────────
-    # Step 3: Clone or update repository
-    # ──────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────
+    # Step 2: Clone or Update Repository
+    # ─────────────────────────────────────────────────────
     - name: Clone or update Git repository on Jump Host
       git:
         repo: "{{ git_repo_url }}"
         dest: "{{ repo_clone_path }}"
         version: "{{ repo_version }}"
         update: yes
-        force: no
-      become: true
-      become_user: rheluser
+        force: true
 
-    # ──────────────────────────────────────────────
-    # Step 4: Confirm Git repository is available
-    # ──────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────
+    # Step 3: Confirm Success
+    # ─────────────────────────────────────────────────────
     - name: Confirm Git repository is available on Jump Host
       debug:
         msg: "Repository is now available at {{ repo_clone_path }}"

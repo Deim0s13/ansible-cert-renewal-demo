@@ -44,7 +44,7 @@
       when: >
         repo_path_stat.stat.exists and
         repo_path_stat.stat.isdir and
-        not git_dir_stat.stat.exists # This condition ensures .git doesn't exist
+        not git_dir_stat.stat.exists
 
     # ─────────────────────────────────────────────────────
     # Step 4: Ensure Git repository is present and up-to-date
@@ -56,8 +56,7 @@
         repo: "{{ git_repo_url }}"
         dest: "{{ repo_clone_path }}"
         version: "{{ repo_version }}"
-        update: true  # This will clone if dest is empty/non-existent, and pull if it's a valid repo
-        # force: yes  # You can keep this if you want to aggressively overwrite local changes, but it's not directly related to the "destination exists and is not empty" error for initial clones.
+        update: true
 
     # ─────────────────────────────────────────────────────
     # Step 5: Confirm Repo Path

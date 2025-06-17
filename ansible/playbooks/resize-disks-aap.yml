@@ -11,54 +11,52 @@
   gather_facts: false
 
   vars:
-    pv_device: /dev/sdb
-    vg_name: rootvg
-    opt_lv_name: optlv
     opt_lv_size: 20g
     opt_mount_point: /opt
+    opt_lv_name: optlv
+    vg_name: rootvg
 
   tasks:
 
     # ─────────────────────────────────────────────────────
-    # Step 1: Prepare /dev/sdb and Extend rootvg
+    # Step 0: Check available space in rootvg
     # ─────────────────────────────────────────────────────
-    - name: Ensure /dev/sdb is not mounted
-      mount:
-        path: /mnt
-        state: absent
-      ignore_errors: true  # In case not mounted
+    - name: Debug rootvg free space
+      command: vgdisplay {{ vg_name }}
+      register: vgdisplay_output
+      changed_when: false
 
-    - name: Wipe existing filesystem on /dev/sdb (destructive!)
-      command: "wipefs -a {{ pv_device }}"
-      when: pv_device is defined
-
-    - name: Extend rootvg with /dev/sdb
-      community.general.lvg:
-        vg: "{{ vg_name }}"
-        pvs: "{{ pv_device }}"
-        pesize: 4M
-        state: present
+    - name: Print rootvg space
+      debug:
+        var: vgdisplay_output.stdout_lines
 
     # ─────────────────────────────────────────────────────
-    # Step 2: Create Logical Volume for /opt
+    # Step 1: Create Logical Volume for /opt
     # ─────────────────────────────────────────────────────
     - name: Create logical volume for /opt
-      community.general.lvol:
+      lvol:
         vg: "{{ vg_name }}"
         lv: "{{ opt_lv_name }}"
         size: "{{ opt_lv_size }}"
         state: present
+      register: create_lv_result
+
+    - name: Confirm LV creation
+      debug:
+        var: create_lv_result
+      when: create_lv_result is defined
 
     # ─────────────────────────────────────────────────────
-    # Step 3: Format the LV with XFS
+    # Step 2: Format the LV with XFS
     # ─────────────────────────────────────────────────────
     - name: Create filesystem on the new logical volume
       filesystem:
         fstype: xfs
         dev: "/dev/{{ vg_name }}/{{ opt_lv_name }}"
+      when: create_lv_result.changed
 
     # ─────────────────────────────────────────────────────
-    # Step 4: Ensure /opt Exists
+    # Step 3: Ensure /opt Exists
     # ─────────────────────────────────────────────────────
     - name: Ensure /opt directory exists
       file:
@@ -66,7 +64,7 @@
         state: directory
 
     # ─────────────────────────────────────────────────────
-    # Step 5: Mount /opt
+    # Step 4: Mount /opt
     # ─────────────────────────────────────────────────────
     - name: Mount /opt
       mount:
@@ -77,7 +75,7 @@
         state: mounted
 
     # ─────────────────────────────────────────────────────
-    # Step 6: Persist /opt Mount in fstab
+    # Step 5: Persist /opt Mount in fstab
     # ─────────────────────────────────────────────────────
     - name: Make /opt mount persistent
       mount:
@@ -86,3 +84,12 @@
         fstype: xfs
         opts: defaults
         state: present
+
+    # ─────────────────────────────────────────────────────
+    # Step 6: Confirm mount success
+    # ─────────────────────────────────────────────────────
+    - name: Check mount target
+      command: mountpoint {{ opt_mount_point }}
+      register: mountpoint_check
+      failed_when: mountpoint_check.rc != 0
+      changed_when: false

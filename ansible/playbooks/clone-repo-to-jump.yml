@@ -1,4 +1,3 @@
----
 - name: Clone Ansible Demo Repository onto Jump Host
   hosts: jump
   gather_facts: false
@@ -10,31 +9,43 @@
 
   tasks:
 
-    # ─────────────────────────────────────────────────────
-    # Step 1: Ensure Git is Available
-    # ─────────────────────────────────────────────────────
+    # ──────────────────────────────────────────────
+    # Step 1: Ensure Git is Installed
+    # ──────────────────────────────────────────────
     - name: Ensure Git is installed on the Jump Host
       become: true
       package:
         name: git
         state: present
 
-    # ─────────────────────────────────────────────────────
-    # Step 2: Clone or Update Repository
-    # ─────────────────────────────────────────────────────
-    - name: Clone or update Git repository on Jump Host
-      become: true
-      become_user: rheluser
+    # ──────────────────────────────────────────────
+    # Step 2a: Clone repository if not already present
+    # ──────────────────────────────────────────────
+    - name: Clone repository if it doesn't exist
       git:
         repo: "{{ git_repo_url }}"
         dest: "{{ repo_clone_path }}"
         version: "{{ repo_version }}"
-        update: yes
-        force: true
+        force: yes
+      become: true
+      become_user: rheluser
+      when: not (repo_clone_path is exists and lookup('ansible.builtin.file', repo_clone_path + '/.git', errors='ignore') is defined)
 
-    # ─────────────────────────────────────────────────────
-    # Step 3: Confirm Success
-    # ─────────────────────────────────────────────────────
+    # ──────────────────────────────────────────────
+    # Step 2b: Pull latest changes if repo already exists
+    # ──────────────────────────────────────────────
+    - name: Pull latest changes from repository
+      become: true
+      become_user: rheluser
+      shell: |
+        cd "{{ repo_clone_path }}" && git pull origin {{ repo_version }}
+      args:
+        chdir: "{{ repo_clone_path }}"
+      when: repo_clone_path is exists and lookup('ansible.builtin.file', repo_clone_path + '/.git', errors='ignore') is defined
+
+    # ──────────────────────────────────────────────
+    # Step 3: Confirm Git repository is available
+    # ──────────────────────────────────────────────
     - name: Confirm Git repository is available on Jump Host
       debug:
         msg: "Repository is now available at {{ repo_clone_path }}"

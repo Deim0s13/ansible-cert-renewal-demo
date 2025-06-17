@@ -1,8 +1,8 @@
 ---
 - name: Clone Ansible Demo Repository onto Jump Host
   hosts: jump
-  become: true
   gather_facts: false
+  become: true
 
   vars:
     git_repo_url: "https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
@@ -20,27 +20,41 @@
         state: present
 
     # ─────────────────────────────────────────────────────
-    # Step 2: Check if Repo Already Exists
+    # Step 2: Check if repo already exists and is a Git repo
     # ─────────────────────────────────────────────────────
-    - name: Check if Git repository already exists
+    - name: Check if .git/config exists in clone path
       stat:
-        path: "{{ repo_clone_path }}/.git"
-      register: repo_exists
+        path: "{{ repo_clone_path }}/.git/config"
+      register: git_config_check
 
     # ─────────────────────────────────────────────────────
-    # Step 3: Clone Repo if Not Present
+    # Step 3: Clone repo if not already present
     # ─────────────────────────────────────────────────────
-    - name: Clone Git repository (if not present)
+    - name: Clone Git repository (only if not already cloned)
+      become: true
+      become_user: rheluser
       git:
         repo: "{{ git_repo_url }}"
         dest: "{{ repo_clone_path }}"
         version: "{{ repo_version }}"
-        update: no
-      become_user: rheluser
-      when: not repo_exists.stat.exists
+        update: false
+      when: not git_config_check.stat.exists
 
     # ─────────────────────────────────────────────────────
-    # Step 4: Confirm Repository Path
+    # Step 4: Pull latest changes if repo already exists
+    # ─────────────────────────────────────────────────────
+    - name: Pull latest changes from remote
+      become: true
+      become_user: rheluser
+      git:
+        repo: "{{ git_repo_url }}"
+        dest: "{{ repo_clone_path }}"
+        version: "{{ repo_version }}"
+        update: true
+      when: git_config_check.stat.exists
+
+    # ─────────────────────────────────────────────────────
+    # Step 5: Confirm Repo Path
     # ─────────────────────────────────────────────────────
     - name: Confirm Git repository is available on Jump Host
       debug:

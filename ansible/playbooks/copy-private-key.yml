@@ -23,8 +23,9 @@
   - name: Fail if the private key is missing
     ansible.builtin.fail:
       msg: "Private SSH key not found at '{{ private_key_path }}'."
-    when: not local_private_key_check.stat.exists
+      delegate_to: localhost
     run_once: true
+    when: not local_private_key_check.stat.exists
 
   # ─────────────────────────────────────────────────────────────
   # Step 2 ▸ Ensure ~/.ssh exists on the jump host
@@ -58,7 +59,7 @@
   - name: Configure SSH client on the jump host
     ansible.builtin.blockinfile:
       path: "/home/rheluser/.ssh/config"
-      create: yes
+      create: true
       owner: rheluser
       group: rheluser
       mode: '0600'

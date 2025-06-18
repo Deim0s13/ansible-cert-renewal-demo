@@ -33,16 +33,29 @@
         lv: "{{ opt_lv_name }}"
         size: "{{ opt_lv_size }}"
         state: present
+      register: create_lv_result # This will be populated. changed: true if created, false if already exists.
+      ignore_errors: false
 
     # ─────────────────────────────────────────────────────
-    # This debug task is still helpful, as it will now show the actual
-    # result of the lvol module without the spurious 'removes_backup' error.
-    # We still want to see its output if the LV isn't being created.
+    # NEW STEP: Verify if the LV actually exists after the lvol task.
+    # This will be the definitive check for subsequent 'when' conditions.
+    # ─────────────────────────────────────────────────────
+    - name: Verify optlv exists after creation attempt
+      command: "lvdisplay /dev/{{ vg_name }}/{{ opt_lv_name }}"
+      register: lv_exist_check
+      failed_when: lv_exist_check.rc != 0 # This task will fail if LV doesn't exist
+      changed_when: false
+      # This 'when' condition is simple: run if the lvol task just changed OR if lvdisplay would have previously failed (meaning it didn't exist)
+      # Or, for simplicity, just run it always after the lvol task. It's idempotent.
+      # when: create_lv_result.changed or ("Failed to find logical volume" in create_lv_result.stderr | default(''))
+
+    # ─────────────────────────────────────────────────────
+    # Step 1.5 (moved the debug after the existence check)
     # ─────────────────────────────────────────────────────
     - name: Print LV creation result (full output for debugging)
       debug:
         var: create_lv_result
-        verbosity: 1 # Keep this if you're running with -vvv
+        verbosity: 1 # Keep this to see the output with -vvv
 
     # ─────────────────────────────────────────────────────
     # Step 2: Format the LV with XFS
@@ -51,7 +64,9 @@
       filesystem:
         fstype: xfs
         dev: "/dev/{{ vg_name }}/{{ opt_lv_name }}"
-      when: create_lv_result.changed and ('lv_name' in create_lv_result and create_lv_result.lv_name == opt_lv_name)
+      # Now, only run if the LV verification task succeeded.
+      # We assume if lv_exist_check.rc == 0, the LV exists.
+      when: lv_exist_check.rc == 0
 
     # ─────────────────────────────────────────────────────
     # Step 3: Ensure /opt Exists
@@ -71,8 +86,8 @@
         fstype: xfs
         opts: defaults
         state: mounted
-      # Only attempt to mount if the LV was created and formatted
-      when: create_lv_result.changed and ('lv_name' in create_lv_result and create_lv_result.lv_name == opt_lv_name)
+      # Only attempt to mount if the LV verification task succeeded.
+      when: lv_exist_check.rc == 0
 
     # ─────────────────────────────────────────────────────
     # Step 5: Persist /opt Mount in fstab
@@ -84,9 +99,8 @@
         fstype: xfs
         opts: defaults
         state: present
-      # Only persist if the LV was created and formatted
-      when: create_lv_result.changed and ('lv_name' in create_lv_result and create_lv_result.lv_name == opt_lv_name)
-
+      # Only persist if the LV verification task succeeded.
+      when: lv_exist_check.rc == 0
 
     # ─────────────────────────────────────────────────────
     # Step 6: Confirm mount success
@@ -96,5 +110,5 @@
       register: mountpoint_check
       failed_when: mountpoint_check.rc != 0
       changed_when: false
-      # Only check if the mount was attempted
-      when: create_lv_result.changed and ('lv_name' in create_lv_result and create_lv_result.lv_name == opt_lv_name)
+      # Only check if the mount was attempted.
+      when: lv_exist_check.rc == 0

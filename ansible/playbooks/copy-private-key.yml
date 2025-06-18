@@ -66,32 +66,18 @@
       group: rheluser
       mode: '0600'
       block: |
-        - name: Configure SSH client on the jump host
-          ansible.builtin.blockinfile:
-            path: "/home/rheluser/.ssh/config"
-            create: true
-            owner: rheluser
-            group: rheluser
-            mode: '0600'
-            block: |
-              Host {{ aap_host_subnet }}
-                User rheluser
-                IdentityFile ~/.ssh/ansible-demo-key
-                IdentitiesOnly yes
-                # Add these lines to help with negotiation issues
-                PubkeyAcceptedAlgorithms \
-                  +ssh-rsa,ssh-dss,rsa-sha2-256,rsa-sha2-512,ssh-ed25519,
-                  ecdsa-sha2-nistp256,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com
-                HostKeyAlgorithms \
-                  +ssh-rsa,ssh-dss,rsa-sha2-256,rsa-sha2-512,ssh-ed25519,
-                  ecdsa-sha2-nistp256,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com
-                KexAlgorithms \
-                  +diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,
-                  diffie-hellman-group-exchange-sha1
-                Ciphers +aes128-cbc,aes192-cbc,aes256-cbc
-                ConnectTimeout 10
-                # StrictHostKeyChecking no
-                # UserKnownHostsFile /dev/null
+        Host {{ aap_host_subnet }}
+          User rheluser
+          IdentityFile ~/.ssh/ansible-demo-key
+          IdentitiesOnly yes
+          # Add these lines to help with negotiation issues
+          PubkeyAcceptedAlgorithms +ssh-rsa,ssh-dss,rsa-sha2-256,rsa-sha2-512,ssh-ed25519,ecdsa-sha2-nistp256,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com
+          HostKeyAlgorithms +ssh-rsa,ssh-dss,rsa-sha2-256,rsa-sha2-512,ssh-ed25519,ecdsa-sha2-nistp256,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com
+          KexAlgorithms +diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1
+          Ciphers +aes128-cbc,aes192-cbc,aes256-cbc
+          ConnectTimeout 10
+          # StrictHostKeyChecking no
+          # UserKnownHostsFile /dev/null
 
   # (Optional) fix SELinux context if enforcing
   - name: Restore SELinux context on ~/.ssh (optional)

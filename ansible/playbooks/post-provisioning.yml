@@ -10,7 +10,6 @@
   gather_facts: false
   vars:
     ansible_user_dir: /home/rheluser
-    private_key_path: "{{ private_key_path }}"
     repo_url: "https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
     target_dir: "{{ ansible_user_dir }}/{{ repo_url | basename | regex_replace('\\.git$', '') }}"
 
@@ -22,7 +21,7 @@
 - name: Step 0 – Inject SSH Private Key to Jump Host
   import_playbook: copy-private-key.yml
   vars:
-    private_key_path: "{{ private_key_path }}"
+    private_key_path: "~/.ssh/ansible-demo-key"
 
 # ─────────────────────────────────────────────────────
 # Step 1 – Configure jump host (packages, ruamel.yaml, etc.)

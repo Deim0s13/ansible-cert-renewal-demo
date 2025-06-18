@@ -4,12 +4,9 @@
   gather_facts: false
 
   vars:
-    # Where the key lives on your Ansible control node
-    private_key_path: "{{ private_key_path | default('~/.ssh/ansible-demo-key') }}"
-    # Where it will be placed on the jump host
     remote_key_dest: "/home/rheluser/.ssh/ansible-demo-key"
-    # Assuming your AAP host is in the 10.0.1.x range. Adjust if necessary.
     aap_host_subnet: "10.0.1.*"
+    target_hosts_for_keyscan: "{{ (groups['aap'] | default([])) + (groups['rhel_web'] | default([])) }}"
 
   tasks:
   # ─────────────────────────────────────────────────────────────
@@ -32,11 +29,11 @@
   # ─────────────────────────────────────────────────────────────
   # Step 2 ▸ Ensure ~/.ssh exists on the jump host
   # ─────────────────────────────────────────────────────────────
-  - name: Create ~/.ssh on the jump host
-    ansible.builtin.file:
-      path: "/home/rheluser/.ssh"
-      state: directory
-      mode: '0700'
+  - name: Copy private SSH key to the jump host
+    ansible.builtin.copy:
+      src: "{{ private_key_path | default('~/.ssh/ansible-demo-key') }}"
+      dest: "{{ remote_key_dest }}"
+      mode: '0600'
       owner: rheluser
       group: rheluser
 
@@ -60,7 +57,7 @@
   # ─────────────────────────────────────────────────────────────
   - name: Configure SSH client on the jump host
     ansible.builtin.blockinfile:
-      path: "/home/rheluser/.ssh/config"
+      path: "{{ ansible_user_dir }}/.ssh/config"
       create: true
       owner: rheluser
       group: rheluser
@@ -70,7 +67,6 @@
           User rheluser
           IdentityFile ~/.ssh/ansible-demo-key
           IdentitiesOnly yes
-          # Add these lines to help with negotiation issues
           PubkeyAcceptedAlgorithms +ssh-rsa,ssh-dss,rsa-sha2-256,rsa-sha2-512,ssh-ed25519,ecdsa-sha2-nistp256,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com
           HostKeyAlgorithms +ssh-rsa,ssh-dss,rsa-sha2-256,rsa-sha2-512,ssh-ed25519,ecdsa-sha2-nistp256,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com
           KexAlgorithms +diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1
@@ -93,12 +89,19 @@
     register: _ssh_keyscan_result
     delegate_to: "{{ groups['jump'][0] }}"
     changed_when: false
-    # Do NOT ignore errors here. If ssh-keyscan fails, we want the playbook to fail.
-    loop: "{{ (groups['aap'] | default([])) + (groups['rhel_web'] | default([])) }}"
+    loop: "{{ target_hosts_for_keyscan }}"
     when:
-      # Ensure hostvars[item].ansible_host is defined and 'item' is a valid string
       - hostvars[item].ansible_host is defined
       - item is string and item | length > 0
+
+  - name: DEBUG - ssh-keyscan results for each host
+    debug:
+      var: item
+      verbosity: 1
+    loop: "{{ _ssh_keyscan_result.results }}"
+    loop_control:
+      label: "{{ item.item }}"
+    when: _ssh_keyscan_result.results is defined and (_ssh_keyscan_result.results | length > 0)
 
   # ─────────────────────────────────────────────────────────────
   # Step 6 ▸ Add those keys to known_hosts on the jump host
@@ -138,14 +141,15 @@
   # ─────────────────────────────────────────────────────────────
   - name: Test SSH connectivity from jump host to internal VMs
     ansible.builtin.shell: >
-      ssh -o ConnectTimeout=5
-          -o StrictHostKeyChecking=no
-          rheluser@{{ hostvars[item].ansible_host }} hostname
+      ssh -o ConnectTimeout=5 rheluser@{{ hostvars[item].ansible_host }} hostname
     register: ssh_test_result
     delegate_to: "{{ groups['jump'][0] }}"
     ignore_errors: true
     changed_when: false
-    loop: "{{ (groups['aap'] | default([])) + (groups['rhel_web'] | default([])) }}"
+    loop: "{{ target_hosts_for_keyscan }}"
+    when:
+      - hostvars[item].ansible_host is defined
+      - item is string and item | length > 0
 
   - name: Display SSH test results
     ansible.builtin.debug:

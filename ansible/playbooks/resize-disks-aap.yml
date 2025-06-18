@@ -33,13 +33,11 @@
         lv: "{{ opt_lv_name }}"
         size: "{{ opt_lv_size }}"
         state: present
-        # Add the following two lines for more debug output
-        # This will make the debug output of `create_lv_result` much more verbose,
-        # showing the actual LVM command executed and its stderr/stdout.
       args:
-        removes_backup: yes # This is a non-functional option to make the module return more info for debugging
+        # This is for debugging only. It makes the module return more info.
+        removes_backup: yes
       register: create_lv_result
-      # Remove or comment out this line to allow Ansible to show the real module error if it's there
+      # REMOVE or comment out the 'failed_when' line if you had it.
       # failed_when: create_lv_result.failed is defined and create_lv_result.failed
       ignore_errors: false
 
@@ -47,7 +45,7 @@
       debug:
         var: create_lv_result
         # The 'verbosity' parameter ensures this debug task only runs at -vvv or higher.
-        # Set to a lower number (e.g., 1) or remove for general debugging.
+        # Set to a lower number (e.g., 1) or remove for general debugging if you want it always visible.
         verbosity: 1
 
     # ─────────────────────────────────────────────────────
@@ -57,8 +55,9 @@
       filesystem:
         fstype: xfs
         dev: "/dev/{{ vg_name }}/{{ opt_lv_name }}"
-      # Only run if the LV creation was actually successful (based on system state, not just changed flag)
-      # This will make the playbook explicitly fail if LV creation fails, rather than continuing.
+      # Crucial: Only run this if the LV creation was actually successful on the system.
+      # This condition checks if the 'lv_name' key (which would be present on success)
+      # in the result matches your desired LV name.
       when: create_lv_result.changed and ('lv_name' in create_lv_result and create_lv_result.lv_name == opt_lv_name)
 
     # ─────────────────────────────────────────────────────

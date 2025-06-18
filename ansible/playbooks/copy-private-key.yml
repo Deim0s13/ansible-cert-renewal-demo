@@ -6,7 +6,7 @@
   vars:
     ansible_user_dir: /home/rheluser
     remote_key_dest: "{{ ansible_user_dir }}/.ssh/ansible-demo-key"
-    aap_host_subnet: "10.0.1.*" # Adjust if your AAP host is not in this subnet
+    aap_host_subnet: "10.0.1.*" # Adjust this if your AAP host is not in this subnet
     target_hosts_for_keyscan: "{{ (groups['aap'] | default([])) + (groups['rhel_web'] | default([])) }}"
 
   tasks:
@@ -28,8 +28,8 @@
       when: not local_private_key_check.stat.exists
 
     # ─────────────────────────────────────────────────────────────
-    # Step 2 ▸ Ensure ~/.ssh exists on the jump host
-    # This was missing from your 'Actual Playbook' but present in 'debug'.
+    # Step 2 ▸ Ensure ~/.ssh directory exists on the jump host
+    # (Corrected task name and purpose compared to your original "Actual playbook")
     # ─────────────────────────────────────────────────────────────
     - name: Ensure ~/.ssh on jump host exists
       ansible.builtin.file:
@@ -69,7 +69,6 @@
             User rheluser
             IdentityFile ~/.ssh/ansible-demo-key
             IdentitiesOnly yes
-            # Add these lines to help with negotiation issues
             PubkeyAcceptedAlgorithms +ssh-rsa,ssh-dss,rsa-sha2-256,rsa-sha2-512,ssh-ed25519,ecdsa-sha2-nistp256,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com
             HostKeyAlgorithms +ssh-rsa,ssh-dss,rsa-sha2-256,rsa-sha2-512,ssh-ed25519,ecdsa-sha2-nistp256,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com
             KexAlgorithms +diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1
@@ -86,7 +85,6 @@
 
     # ─────────────────────────────────────────────────────────────
     # Step 5 ▸ Fetch SSH host keys for internal VMs
-    # This was Step 4 in debug, now correctly numbered.
     # ─────────────────────────────────────────────────────────────
     - name: Scan SSH host keys for internal VMs
       ansible.builtin.command: "ssh-keyscan -p 22 -H {{ hostvars[item].ansible_host }}"
@@ -109,7 +107,6 @@
 
     # ─────────────────────────────────────────────────────────────
     # Step 6 ▸ Add those keys to ~/.ssh/known_hosts on the jump host
-    # This was Step 5 in debug, now correctly numbered.
     # ─────────────────────────────────────────────────────────────
     - name: Add scanned keys to ~/.ssh/known_hosts (remove old entry first)
       ansible.builtin.known_hosts:
@@ -143,18 +140,14 @@
 
     # ─────────────────────────────────────────────────────────────
     # Step 7 ▸ OPTIONAL – test connectivity from the jump host
-    # This was Step 6 in debug, now correctly numbered.
     # ─────────────────────────────────────────────────────────────
     - name: Test SSH connectivity from jump host to internal VMs
       ansible.builtin.shell: |
-        # The `|` literal block style preserves newlines, making each line a separate command.
-        # Print the resolved IP for debugging (optional, can remove this echo line if you prefer cleaner stdout)
         echo "Attempting SSH to resolved IP: {{ hostvars[item].ansible_host }}"
-        # Execute the actual SSH command and capture its stdout/stderr
         ssh -o ConnectTimeout=5 rheluser@{{ hostvars[item].ansible_host }} hostname 2>&1
       register: ssh_test_result
       delegate_to: "{{ groups['jump'][0] }}"
-      ignore_errors: true # Important: Allows the playbook to continue even if a test SSH fails
+      ignore_errors: true
       changed_when: false
       loop: "{{ target_hosts_for_keyscan }}"
       when:
@@ -163,7 +156,6 @@
 
     - name: Display SSH test results
       ansible.builtin.debug:
-        # Now, item.stdout will be the actual output of the SSH command (hostname or error)
         msg: "SSH to {{ item.item }} (resolved to {{ hostvars[item].ansible_host }}) → {{ item.stdout | default('FAILED') }} (rc={{ item.rc }})"
       loop: "{{ ssh_test_result.results }}"
       when: ssh_test_result.results is defined

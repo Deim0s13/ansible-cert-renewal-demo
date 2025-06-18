@@ -4,8 +4,11 @@
   gather_facts: false
 
   vars:
-    remote_key_dest: "/home/rheluser/.ssh/ansible-demo-key"
-    aap_host_subnet: "10.0.1.*"
+    # Add ansible_user_dir here so it's available within this playbook
+    ansible_user_dir: /home/rheluser
+    remote_key_dest: "{{ ansible_user_dir }}/.ssh/ansible-demo-key" # Use it here too
+    aap_host_subnet: "10.0.1.*" # Adjust this if your AAP host is not in this subnet
+    # Ensure this list reflects the hosts you want to add keys for
     target_hosts_for_keyscan: "{{ (groups['aap'] | default([])) + (groups['rhel_web'] | default([])) }}"
 
   tasks:
@@ -29,21 +32,23 @@
   # ─────────────────────────────────────────────────────────────
   # Step 2 ▸ Ensure ~/.ssh exists on the jump host
   # ─────────────────────────────────────────────────────────────
-  - name: Copy private SSH key to the jump host
-    ansible.builtin.copy:
-      src: "{{ private_key_path | default('~/.ssh/ansible-demo-key') }}"
-      dest: "{{ remote_key_dest }}"
-      mode: '0600'
+  - name: Ensure ~/.ssh on jump host exists
+    ansible.builtin.file:
+      path: "{{ ansible_user_dir }}/.ssh" # Uses the newly defined ansible_user_dir
+      state: directory
+      mode: '0700'
       owner: rheluser
       group: rheluser
 
   # ─────────────────────────────────────────────────────────────
   # Step 3 ▸ Copy the private key to the jump host
+  # (Your playbook had two "Copy private SSH key" tasks. I am combining them for efficiency.
+  # If you had distinct purposes, separate them again.)
   # ─────────────────────────────────────────────────────────────
   - name: Copy private SSH key to the jump host
     ansible.builtin.copy:
-      src: "{{ private_key_path }}"
-      dest: "{{ remote_key_dest }}"
+      src: "{{ private_key_path | default('~/.ssh/ansible-demo-key') }}"
+      dest: "{{ remote_key_dest }}" # This is already using ansible_user_dir indirectly
       mode: '0600'
       owner: rheluser
       group: rheluser
@@ -53,11 +58,11 @@
       msg: "Private key copied to {{ remote_key_dest }}"
 
   # ─────────────────────────────────────────────────────────────
-  # Step 4 ▸ NEW – configure OpenSSH on the jump host to use the key
+  # Step 4 ▸ Configure OpenSSH on the jump host to use the key
   # ─────────────────────────────────────────────────────────────
   - name: Configure SSH client on the jump host
     ansible.builtin.blockinfile:
-      path: "{{ ansible_user_dir }}/.ssh/config"
+      path: "{{ ansible_user_dir }}/.ssh/config" # Uses the newly defined ansible_user_dir
       create: true
       owner: rheluser
       group: rheluser
@@ -77,7 +82,7 @@
 
   # (Optional) fix SELinux context if enforcing
   - name: Restore SELinux context on ~/.ssh (optional)
-    ansible.builtin.command: /sbin/restorecon -Rv /home/rheluser/.ssh/
+    ansible.builtin.command: /sbin/restorecon -Rv {{ ansible_user_dir }}/.ssh/ # Uses ansible_user_dir
     when: ansible_selinux.status is defined and ansible_selinux.status == "enabled"
     changed_when: false
 

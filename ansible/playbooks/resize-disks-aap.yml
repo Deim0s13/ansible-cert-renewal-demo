@@ -33,20 +33,16 @@
         lv: "{{ opt_lv_name }}"
         size: "{{ opt_lv_size }}"
         state: present
-      args:
-        # This is for debugging only. It makes the module return more info.
-        removes_backup: yes
-      register: create_lv_result
-      # REMOVE or comment out the 'failed_when' line if you had it.
-      # failed_when: create_lv_result.failed is defined and create_lv_result.failed
-      ignore_errors: false
 
+    # ─────────────────────────────────────────────────────
+    # This debug task is still helpful, as it will now show the actual
+    # result of the lvol module without the spurious 'removes_backup' error.
+    # We still want to see its output if the LV isn't being created.
+    # ─────────────────────────────────────────────────────
     - name: Print LV creation result (full output for debugging)
       debug:
         var: create_lv_result
-        # The 'verbosity' parameter ensures this debug task only runs at -vvv or higher.
-        # Set to a lower number (e.g., 1) or remove for general debugging if you want it always visible.
-        verbosity: 1
+        verbosity: 1 # Keep this if you're running with -vvv
 
     # ─────────────────────────────────────────────────────
     # Step 2: Format the LV with XFS
@@ -55,9 +51,6 @@
       filesystem:
         fstype: xfs
         dev: "/dev/{{ vg_name }}/{{ opt_lv_name }}"
-      # Crucial: Only run this if the LV creation was actually successful on the system.
-      # This condition checks if the 'lv_name' key (which would be present on success)
-      # in the result matches your desired LV name.
       when: create_lv_result.changed and ('lv_name' in create_lv_result and create_lv_result.lv_name == opt_lv_name)
 
     # ─────────────────────────────────────────────────────

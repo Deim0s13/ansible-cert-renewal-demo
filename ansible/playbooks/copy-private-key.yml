@@ -141,21 +141,21 @@
     # ─────────────────────────────────────────────────────────────
     # Step 7 ▸ OPTIONAL – test connectivity from the jump host
     # ─────────────────────────────────────────────────────────────
-    - name: Test SSH connectivity from jump host to internal VMs
-      ansible.builtin.shell: |
-        echo "Attempting SSH to resolved IP: {{ hostvars[item].ansible_host }}"
-        ssh -o ConnectTimeout=5 rheluser@{{ hostvars[item].ansible_host }} hostname 2>&1
-      register: ssh_test_result
-      delegate_to: "{{ groups['jump'][0] }}"
-      ignore_errors: true
-      changed_when: false
-      loop: "{{ target_hosts_for_keyscan }}"
-      when:
-        - hostvars[item].ansible_host is defined
-        - item is string and item | length > 0
+    #- name: Test SSH connectivity from jump host to internal VMs
+    #  ansible.builtin.shell: |
+    #    echo "Attempting SSH to resolved IP: {{ hostvars[item].ansible_host }}"
+    #    ssh -o ConnectTimeout=5 rheluser@{{ hostvars[item].ansible_host }} hostname 2>&1
+    #  register: ssh_test_result
+    #  delegate_to: "{{ groups['jump'][0] }}"
+    #  ignore_errors: true
+    #  changed_when: false
+    #  loop: "{{ target_hosts_for_keyscan }}"
+    #  when:
+    #    - hostvars[item].ansible_host is defined
+    #    - item is string and item | length > 0
 
-    - name: Display SSH test results
-      ansible.builtin.debug:
-        msg: "SSH to {{ item.item }} (resolved to {{ hostvars[item].ansible_host }}) → {{ item.stdout | default('FAILED') }} (rc={{ item.rc }})"
-      loop: "{{ ssh_test_result.results }}"
-      when: ssh_test_result.results is defined
+    # - name: Display SSH test results
+    #  ansible.builtin.debug:
+    #    msg: "SSH to {{ item.item }} (resolved to {{ hostvars[item].ansible_host }}) → {{ item.stdout | default('FAILED') }} (rc={{ item.rc }})"
+    #  loop: "{{ ssh_test_result.results }}"
+    #  when: ssh_test_result.results is defined

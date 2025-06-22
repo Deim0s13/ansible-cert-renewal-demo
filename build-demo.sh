@@ -122,7 +122,7 @@ EOF
 echo -e "\n Applying VM layer..."
 terraform -chdir="$VMS_DIR" init
 terraform -chdir="$VMS_DIR" apply -auto-approve \
-  -var="location=EastAsia" \
+  -var="location=WestUS" \
   -var="resource_group_name=cert-renewal-demo-rg" \
   -var="subnet_id=$SUBNET_ID" \
   -var="linux_nsg_id=$LINUX_NSG_ID" \

@@ -19,7 +19,7 @@ variable "resource_group_name" {
 variable "location" {
   type        = string
   description = "Azure region where resources will be deployed"
-  default     = "EastAsia"
+  default     = "WestUS"
 }
 
 # ───────────────────────────────────

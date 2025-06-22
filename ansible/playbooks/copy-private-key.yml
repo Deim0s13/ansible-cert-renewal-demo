@@ -1,161 +1,97 @@
 ---
+# ─────────────────────────────────────────────────────────────
+# Playbook: copy-private-key.yml
+# Purpose : Injects SSH private key and sets up SSH client config
+#           on the jump host for inter-VM communication.
+# ─────────────────────────────────────────────────────────────
 - name: Inject SSH Private Key to Jump Host for Inter-VM Communication
   hosts: jump
-  gather_facts: false
-
+  gather_facts: true # Gather facts to ensure 'ansible_user_dir' is available if not defined globally
   vars:
+    # Path to the private key on the local (laptop) control node
+    private_key_path: "{{ private_key_path }}"
+    # Expected user home directory on the jump host
     ansible_user_dir: /home/rheluser
-    remote_key_dest: "{{ ansible_user_dir }}/.ssh/ansible-demo-key"
-    aap_host_subnet: "10.0.1.*" # Adjust this if your AAP host is not in this subnet
-    target_hosts_for_keyscan: "{{ (groups['aap'] | default([])) + (groups['rhel_web'] | default([])) }}"
+    # Destination path for the private key on the jump host
+    jump_host_key_dest: "{{ ansible_user_dir }}/.ssh/ansible-demo-key"
+    # IP address of the AAP host (to be scanned from the jump host)
+    aap_host_ip: "{{ aap_host_ip | default('10.0.1.12') }}" # Use passed var or default
 
   tasks:
-    # ─────────────────────────────────────────────────────────────
-    # Step 1 ▸ Validate the key exists locally (runs on control node)
-    # ─────────────────────────────────────────────────────────────
-    - name: Check if the private key exists locally
-      ansible.builtin.stat:
-        path: "{{ private_key_path | default('~/.ssh/ansible-demo-key') }}"
-      delegate_to: localhost
-      run_once: true
-      register: local_private_key_check
-
-    - name: Fail if the private key is missing
-      ansible.builtin.fail:
-        msg: "Private SSH key not found at '{{ private_key_path | default('~/.ssh/ansible-demo-key') }}'."
-      delegate_to: localhost
-      run_once: true
-      when: not local_private_key_check.stat.exists
-
-    # ─────────────────────────────────────────────────────────────
-    # Step 2 ▸ Ensure ~/.ssh directory exists on the jump host
-    # (Corrected task name and purpose compared to your original "Actual playbook")
-    # ─────────────────────────────────────────────────────────────
-    - name: Ensure ~/.ssh on jump host exists
+    # ─────────────────────────────────────────────────────
+    # Task 0.1 – Ensure ~/.ssh directory exists on jump host
+    # ─────────────────────────────────────────────────────
+    - name: Ensure ~/.ssh directory exists on jump host
       ansible.builtin.file:
         path: "{{ ansible_user_dir }}/.ssh"
         state: directory
         mode: '0700'
-        owner: rheluser
-        group: rheluser
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
 
-    # ─────────────────────────────────────────────────────────────
-    # Step 3 ▸ Copy the private key to the jump host
-    # ─────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────
+    # Task 0.2 – Copy private SSH key to the jump host
+    # ─────────────────────────────────────────────────────
     - name: Copy private SSH key to the jump host
       ansible.builtin.copy:
-        src: "{{ private_key_path | default('~/.ssh/ansible-demo-key') }}"
-        dest: "{{ remote_key_dest }}"
+        src: "{{ private_key_path }}" # Source is on laptop
+        dest: "{{ jump_host_key_dest }}" # Destination is on jump host
         mode: '0600'
-        owner: rheluser
-        group: rheluser
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
 
-    - name: Confirm private key was copied
-      ansible.builtin.debug:
-        msg: "Private key copied to {{ remote_key_dest }}"
-
-    # ─────────────────────────────────────────────────────────────
-    # Step 4 ▸ Configure OpenSSH on the jump host for broader compatibility
-    # ─────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────
+    # Task 0.3 – Configure SSH client on the jump host
+    #           (for internal VM communication)
+    # ─────────────────────────────────────────────────────
     - name: Configure SSH client on the jump host
       ansible.builtin.blockinfile:
         path: "{{ ansible_user_dir }}/.ssh/config"
         create: true
-        owner: rheluser
-        group: rheluser
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
         mode: '0600'
         block: |
-          Host {{ aap_host_subnet }}
+          Host 10.0.1.*
             User rheluser
             IdentityFile ~/.ssh/ansible-demo-key
             IdentitiesOnly yes
+            # These are for older SSH servers that might require specific algorithms
             PubkeyAcceptedAlgorithms +ssh-rsa,ssh-dss,rsa-sha2-256,rsa-sha2-512,ssh-ed25519,ecdsa-sha2-nistp256,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com
             HostKeyAlgorithms +ssh-rsa,ssh-dss,rsa-sha2-256,rsa-sha2-512,ssh-ed25519,ecdsa-sha2-nistp256,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com
             KexAlgorithms +diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1
             Ciphers +aes128-cbc,aes192-cbc,aes256-cbc
             ConnectTimeout 10
-            # StrictHostKeyChecking no
-            # UserKnownHostsFile /dev/null
+            # Removed StrictHostKeyChecking no and UserKnownHostsFile /dev/null
+            # as host keys will be managed via known_hosts module.
 
-    # (Optional) fix SELinux context if enforcing
-    - name: Restore SELinux context on ~/.ssh (optional)
-      ansible.builtin.command: /sbin/restorecon -Rv {{ ansible_user_dir }}/.ssh/
-      when: ansible_selinux.status is defined and ansible_selinux.status == "enabled"
-      changed_when: false
+    # ─────────────────────────────────────────────────────
+    # Task 0.4 – Scan SSH host key for AAP host from Jump Host
+    #            (Delegate to ensure scan happens from jump host)
+    # ─────────────────────────────────────────────────────
+    - name: Scan SSH host key for AAP host from Jump Host
+      ansible.builtin.command: "ssh-keyscan -p 22 -H {{ aap_host_ip }}"
+      register: aap_keyscan_result
+      delegate_to: jump-host # Crucial: This command runs on the jump-host
+      changed_when: false # This task won't change state itself
 
-    # ─────────────────────────────────────────────────────────────
-    # Step 5 ▸ Fetch SSH host keys for internal VMs
-    # ─────────────────────────────────────────────────────────────
-    - name: Scan SSH host keys for internal VMs
-      ansible.builtin.command: "ssh-keyscan -p 22 -H {{ hostvars[item].ansible_host }}"
-      register: _ssh_keyscan_result
-      delegate_to: "{{ groups['jump'][0] }}"
-      changed_when: false
-      loop: "{{ target_hosts_for_keyscan }}"
-      when:
-        - hostvars[item].ansible_host is defined
-        - item is string and item | length > 0
-
-    - name: DEBUG - ssh-keyscan results for each host
-      debug:
-        var: item
-        verbosity: 1
-      loop: "{{ _ssh_keyscan_result.results }}"
-      loop_control:
-        label: "{{ item.item }}"
-      when: _ssh_keyscan_result.results is defined and (_ssh_keyscan_result.results | length > 0)
-
-    # ─────────────────────────────────────────────────────────────
-    # Step 6 ▸ Add those keys to ~/.ssh/known_hosts on the jump host
-    # ─────────────────────────────────────────────────────────────
-    - name: Add scanned keys to ~/.ssh/known_hosts (remove old entry first)
+    # ─────────────────────────────────────────────────────
+    # Task 0.5 – Add scanned key to ~/.ssh/known_hosts on jump host
+    #            (Delegate to ensure update happens on jump host)
+    # ─────────────────────────────────────────────────────
+    - name: Add scanned key to ~/.ssh/known_hosts on jump host
       ansible.builtin.known_hosts:
-        name: "{{ item.item }}"
-        state: absent # Remove the entry first, in case the key changed
-      loop: >-
-        {{ _ssh_keyscan_result.results
-            | selectattr('rc','defined')
-            | selectattr('rc','equalto',0)
-            | selectattr('stdout','defined')
-            | selectattr('stdout','truthy')
-            | list }}
-      delegate_to: "{{ groups['jump'][0] }}"
-      when: _ssh_keyscan_result.results is defined and (_ssh_keyscan_result.results | length > 0)
-
-    - name: Add scanned keys to ~/.ssh/known_hosts (add new entry)
-      ansible.builtin.known_hosts:
-        name: "{{ item.item }}"
-        key: "{{ item.stdout }}"
+        name: "{{ aap_host_ip }}"
+        key: "{{ aap_keyscan_result.stdout }}"
         state: present
-        hash_host: true
-      loop: >-
-        {{ _ssh_keyscan_result.results
-            | selectattr('rc','defined')
-            | selectattr('rc','equalto',0)
-            | selectattr('stdout','defined')
-            | selectattr('stdout','truthy')
-            | list }}
-      delegate_to: "{{ groups['jump'][0] }}"
-      when: _ssh_keyscan_result.results is defined and (_ssh_keyscan_result.results | length > 0)
+        hash_host: true # Recommended for security
+        path: "{{ ansible_user_dir }}/.ssh/known_hosts"
+      delegate_to: jump-host # Crucial: This task operates on the jump-host
+      when: aap_keyscan_result.stdout # Only add if keyscan succeeded
 
-    # ─────────────────────────────────────────────────────────────
-    # Step 7 ▸ OPTIONAL – test connectivity from the jump host
-    # ─────────────────────────────────────────────────────────────
-    #- name: Test SSH connectivity from jump host to internal VMs
-    #  ansible.builtin.shell: |
-    #    echo "Attempting SSH to resolved IP: {{ hostvars[item].ansible_host }}"
-    #    ssh -o ConnectTimeout=5 rheluser@{{ hostvars[item].ansible_host }} hostname 2>&1
-    #  register: ssh_test_result
-    #  delegate_to: "{{ groups['jump'][0] }}"
-    #  ignore_errors: true
-    #  changed_when: false
-    #  loop: "{{ target_hosts_for_keyscan }}"
-    #  when:
-    #    - hostvars[item].ansible_host is defined
-    #    - item is string and item | length > 0
-
-    # - name: Display SSH test results
-    #  ansible.builtin.debug:
-    #    msg: "SSH to {{ item.item }} (resolved to {{ hostvars[item].ansible_host }}) → {{ item.stdout | default('FAILED') }} (rc={{ item.rc }})"
-    #  loop: "{{ ssh_test_result.results }}"
-    #  when: ssh_test_result.results is defined
+    # ─────────────────────────────────────────────────────
+    # Task 0.6 – Confirm SSH setup complete on jump host
+    # ─────────────────────────────────────────────────────
+    - name: Confirm SSH key and known_hosts configured on jump host
+      ansible.builtin.debug:
+        msg: "SSH key copied to {{ jump_host_key_dest }} and AAP host key ({{ aap_host_ip }}) added to known_hosts on jump host."

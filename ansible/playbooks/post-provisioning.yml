@@ -6,22 +6,37 @@
 # ─────────────────────────────────────────────────────────────
 
 - name: Post-Provisioning Automation on Jump Host
+  # This targets the jump host from your laptop.
+  # The inventory for *this* playbook needs to define 'jump-host' with its public IP.
+  # Let's assume your 'demo-hosts' file correctly reflects the public IP for 'jump-host'
+  # if you're running this from your laptop using that inventory.
+  # If 'jump-host' in demo-hosts is its *private* IP, you'll need a separate inventory for local runs.
+  # For now, let's assume demo-hosts used locally has jump-host public IP.
   hosts: jump
   gather_facts: false
   vars:
     ansible_user_dir: /home/rheluser
+    private_key_path: "{{ private_key_path }}" # Path on your laptop
     repo_url: "https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
     target_dir: "{{ ansible_user_dir }}/{{ repo_url | basename | regex_replace('\\.git$', '') }}"
 
-  tasks: []
+  tasks: [] # Keep this empty, tasks are imported
 
 # ─────────────────────────────────────────────────────
-# Step 0 – SSH key (Handles private key copy and known_hosts update on jump host)
+# Step 0 – SSH key and known_hosts management on Jump Host
 # ─────────────────────────────────────────────────────
-- name: Step 0 – Inject SSH Private Key to Jump Host
+- name: Step 0 – Inject SSH Private Key and Manage Known Hosts on Jump Host
   import_playbook: copy-private-key.yml
   vars:
-    private_key_path: "~/.ssh/ansible-demo-key"
+    private_key_path: "{{ private_key_path }}"
+    # Pass the IP of the AAP host so copy-private-key can keyscan it
+    aap_host_ip: "10.0.1.12"
+    # Pass the IP of the jump host's *private* IP if copy-private-key needs it for some reason
+    # (Unlikely, but for completeness)
+    jump_host_internal_ip: "10.0.1.10"
+    # Specify the common SSH args here to ensure consistency
+    common_ssh_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
 
 # ─────────────────────────────────────────────────────
 # Step 1 – Configure jump host (packages, ruamel.yaml, etc.)
@@ -36,7 +51,7 @@
   import_playbook: upload-aap-installer.yml
 
 # ─────────────────────────────────────────────────────
-# Step 3 – Clone project repo to jump host (Ensures repo and its contents are ready)
+# Step 3 – Clone project repo to jump host
 # ─────────────────────────────────────────────────────
 - name: Step 3 – Clone Git Repository
   import_playbook: clone-repo-to-jump.yml
@@ -48,21 +63,18 @@
   hosts: jump
   gather_facts: false
   vars:
-    # Redeclaring for clarity, though it's already defined at the play level
     ansible_user_dir: /home/rheluser
+    jump_host_inventory_path: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/inventory/demo-hosts"
+    jump_host_private_key_path: "{{ ansible_user_dir }}/.ssh/ansible-demo-key"
 
   tasks:
     - name: Run resize-disks-aap.yml from the jump host
       ansible.builtin.shell: |
         export ANSIBLE_CONFIG="{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/ansible.cfg"
-        # We found the exact path, so we can use it directly
-        # You can keep the PATH export if other commands in your shell script might need it,
-        # but for ansible-playbook itself, using the full path is more reliable.
-        # export PATH="$HOME/.local/bin:$PATH"
         {{ ansible_user_dir }}/.local/bin/ansible-playbook \
-          -i "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/inventory/generated-hosts" \
+          -i "{{ jump_host_inventory_path }}" \
           "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks/resize-disks-aap.yml" \
-          -e "ansible_ssh_private_key_file={{ ansible_user_dir }}/.ssh/ansible-demo-key" \
+          -e "ansible_ssh_private_key_file={{ jump_host_private_key_path }}" \
           -e "ansible_user=rheluser" \
           -e "ansible_python_interpreter=/usr/bin/python3"
       args:

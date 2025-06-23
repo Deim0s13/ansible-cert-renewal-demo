@@ -2,6 +2,7 @@
 - name: Resize and mount /opt on AAP node
   hosts: aap
   gather_facts: false
+  become: true
 
   vars:
     # Connection variables (passed via -e, so these defaults are backup)

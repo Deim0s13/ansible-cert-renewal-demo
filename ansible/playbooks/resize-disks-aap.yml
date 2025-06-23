@@ -4,12 +4,18 @@
   gather_facts: false
 
   vars:
+    # Connection variables (passed via -e, so these defaults are backup)
     ansible_host: "{{ aap_ip | default('10.0.1.12') }}"
     ansible_port: "{{ aap_port | default('22') }}"
     ansible_user: "{{ aap_target_user | default('rheluser') }}"
-    # CORRECTED LINE BELOW:
     ansible_ssh_private_key_file: "{{ aap_target_ssh_key | default('/home/rheluser/.ssh/ansible-demo-key') }}"
     ansible_python_interpreter: "/usr/bin/python3"
+
+    # Define the LVM/mount variables here:
+    vg_name: "rootvg"
+    opt_lv_name: "optlv"
+    opt_lv_size: "50g"
+    opt_mount_point: "/opt"
 
   tasks:
 
@@ -42,7 +48,7 @@
         lv: "{{ opt_lv_name }}"
         size: "{{ opt_lv_size }}"
         state: present
-      register: create_lv_result # This will be populated. changed: true if created, false if already exists.
+      register: create_lv_result
       ignore_errors: false
 
     # ─────────────────────────────────────────────────────
@@ -52,11 +58,8 @@
     - name: Verify optlv exists after creation attempt
       command: "lvdisplay /dev/{{ vg_name }}/{{ opt_lv_name }}"
       register: lv_exist_check
-      failed_when: lv_exist_check.rc != 0 # This task will fail if LV doesn't exist
+      failed_when: lv_exist_check.rc != 0
       changed_when: false
-      # This 'when' condition is simple: run if the lvol task just changed OR if lvdisplay would have previously failed (meaning it didn't exist)
-      # Or, for simplicity, just run it always after the lvol task. It's idempotent.
-      # when: create_lv_result.changed or ("Failed to find logical volume" in create_lv_result.stderr | default(''))
 
     # ─────────────────────────────────────────────────────
     # Step 2.5 (moved the debug after the existence check)
@@ -73,8 +76,6 @@
       filesystem:
         fstype: xfs
         dev: "/dev/{{ vg_name }}/{{ opt_lv_name }}"
-      # Now, only run if the LV verification task succeeded.
-      # We assume if lv_exist_check.rc == 0, the LV exists.
       when: lv_exist_check.rc == 0
 
     # ─────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 jump-host ansible_host=10.0.1.10
 
 [aap]
-aap-host
+aap-host ansible_host=10.0.1.12 ansible_user=rheluser ansible_ssh_private_key_file=/home/rheluser/.ssh/ansible-demo-key ansible_python_interpreter=/usr/bin/python3
 
 [ad_pki]
 ad-pki ansible_host=10.0.1.14

@@ -44,9 +44,6 @@
 - name: Step 3 – Clone Git Repository
   import_playbook: clone-repo-to-jump.yml
 
-# ─────────────────────────────────────────────────────
-# Step 4 – Trigger AAP Disk Resize (run from jump host)
-# ─────────────────────────────────────────────────────
 - name: Step 4 – Resize AAP Disk from Jump Host
   hosts: jump
   gather_facts: false
@@ -92,13 +89,3 @@
       args:
         chdir: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks"
       changed_when: false
-
-- name: Run resize-disks-aap.yml from the jump host
-  ansible.builtin.shell: |
-    export ANSIBLE_CONFIG="{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/ansible.cfg"
-    {{ ansible_user_dir }}/.local/bin/ansible-playbook \
-      -i "{{ jump_host_inventory_path }}" \
-      "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks/resize-disks-aap.yml"
-  args:
-    chdir: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks"
-  changed_when: false

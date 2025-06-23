@@ -1,15 +1,15 @@
 ---
 - name: Resize and mount /opt on AAP node
-  hosts: aap # This targets the 'aap' group from your demo-hosts inventory
-  gather_facts: false # Or true, depending on needs
+  hosts: aap
+  gather_facts: false
 
-  # Define connection variables at the play level, which will be overridden by -e vars
-  # This makes the playbook portable and accepts the -e vars from the parent shell call
   vars:
-    ansible_host: "{{ aap_ip | default('10.0.1.12') }}" # Use the passed extra var
-    ansible_port: "{{ aap_port | default('22') }}"     # Use the passed extra var
+    ansible_host: "{{ aap_ip | default('10.0.1.12') }}"
+    ansible_port: "{{ aap_port | default('22') }}"
     ansible_user: "{{ aap_target_user | default('rheluser') }}"
-    ansible_ssh_private_key_file: "{{ aap_target_ssh_key | default('/home/rheluser/.ss
+    # CORRECTED LINE BELOW:
+    ansible_ssh_private_key_file: "{{ aap_target_ssh_key | default('/home/rheluser/.ssh/ansible-demo-key') }}"
+    ansible_python_interpreter: "/usr/bin/python3"
 
   tasks:
 

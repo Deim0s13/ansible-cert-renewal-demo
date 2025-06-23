@@ -15,7 +15,7 @@
     # Define the LVM/mount variables here:
     vg_name: "rootvg"
     opt_lv_name: "optlv"
-    opt_lv_size: "50g"
+    opt_lv_size: "30g"
     opt_mount_point: "/opt"
 
   tasks:

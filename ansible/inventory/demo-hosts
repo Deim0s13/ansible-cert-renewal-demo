@@ -2,7 +2,7 @@
 jump-host ansible_host=10.0.1.10
 
 [aap]
-aap-host ansible_host=10.0.1.12
+aap-host
 
 [ad_pki]
 ad-pki ansible_host=10.0.1.14

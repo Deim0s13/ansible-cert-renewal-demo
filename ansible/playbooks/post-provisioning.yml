@@ -67,6 +67,13 @@
     jump_host_inventory_path: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/inventory/demo-hosts"
     jump_host_private_key_path: "{{ ansible_user_dir }}/.ssh/ansible-demo-key"
 
+    # Define the AAP host connection details explicitly here
+    # This ensures they are passed directly to the inner playbook
+    aap_target_ip: "10.0.1.12"
+    aap_target_port: "22"
+    aap_target_user: "rheluser" # Ensure this matches the user for AAP
+    aap_target_ssh_key: "{{ ansible_user_dir }}/.ssh/ansible-demo-key" # Path on jump-host
+
   tasks:
     - name: Run resize-disks-aap.yml from the jump host
       ansible.builtin.shell: |
@@ -74,10 +81,12 @@
         {{ ansible_user_dir }}/.local/bin/ansible-playbook \
           -i "{{ jump_host_inventory_path }}" \
           "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks/resize-disks-aap.yml" \
-          -e "ansible_ssh_private_key_file={{ jump_host_private_key_path }}" \
-          -e "ansible_user=rheluser" \
+          -e "ansible_ssh_private_key_file={{ aap_target_ssh_key }}" \
+          -e "ansible_user={{ aap_target_user }}" \
           -e "ansible_python_interpreter=/usr/bin/python3" \
-          -e "ansible_ssh_common_args='-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null'" # <--- Critical line for auto-accept
+          -e "aap_ip={{ aap_target_ip }}" \
+          -e "aap_port={{ aap_target_port }}" \
+          -e "ansible_ssh_common_args='-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null -o Port={{ aap_target_port }}'"
       args:
         chdir: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks"
       changed_when: false

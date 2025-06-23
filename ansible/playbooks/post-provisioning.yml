@@ -44,6 +44,9 @@
 - name: Step 3 – Clone Git Repository
   import_playbook: clone-repo-to-jump.yml
 
+# ─────────────────────────────────────────────────────
+# Step 4 – Trigger AAP Disk Resize (run from jump host)
+# ─────────────────────────────────────────────────────
 - name: Step 4 – Resize AAP Disk from Jump Host
   hosts: jump
   gather_facts: false
@@ -54,22 +57,16 @@
   tasks:
     - name: Debug Ansible configuration and SSH for inner playbook
       ansible.builtin.shell: |
-        # Change directory to ensure relative paths are correct
+        # Ensure correct directory for relative paths (this outer comment is fine)
         cd "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks"
 
-        # Display the loaded ANSIBLE_CONFIG path
         echo "ANSIBLE_CONFIG environment variable: $ANSIBLE_CONFIG"
-
-        # Verify if the config file exists and its content
         echo "Content of $ANSIBLE_CONFIG:"
         cat "$ANSIBLE_CONFIG"
 
-        # Run ansible --version with the intended config
         echo "Ansible --version output with specified config:"
         ANSIBLE_CONFIG="$ANSIBLE_CONFIG" {{ ansible_user_dir }}/.local/bin/ansible --version
 
-        # Attempt a direct SSH connection using Ansible's internal SSH client simulation (best effort)
-        # This is not ansible-playbook, but a test to see if general SSH args are being picked up
         echo "Attempting a simulated SSH connection from Ansible CLI:"
         ANSIBLE_CONFIG="$ANSIBLE_CONFIG" {{ ansible_user_dir }}/.local/bin/ansible aap-host -i "{{ jump_host_inventory_path }}" -m ping -vvv
       register: debug_output_inner_env

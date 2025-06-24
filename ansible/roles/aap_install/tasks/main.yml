@@ -1,4 +1,12 @@
 ---
+# ─────────────────────────────────────────────────────────────
+# Role Tasks: aap_install
+# Purpose   : Install AAP from jump → AAP VM
+# ─────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────
+# Step 0 ▸ Assert vault variables are present
+# ─────────────────────────────────────────────────────────────
 - name: Assert AAP vault variables are defined
   ansible.builtin.assert:
     that:
@@ -9,6 +17,9 @@
       and 'aap_pg_password' are present in 'group_vars/aap/vault.yml' and that the vault
       is being loaded correctly.
 
+# ─────────────────────────────────────────────────────────────
+# Step 1 ▸ Install prerequisites on AAP VM
+# ─────────────────────────────────────────────────────────────
 - name: Ensure prerequisite RPMs are present
   ansible.builtin.package:
     name:
@@ -19,11 +30,14 @@
     state: present
 
 - name: Ensure /var/opt exists
-  file:
-    path: "/var/opt"
+  ansible.builtin.file:
+    path: /var/opt
     state: directory
     mode: "0755"
 
+# ─────────────────────────────────────────────────────────────
+# Step 2 ▸ Rsync AAP bundle from jump-host to AAP VM
+# ─────────────────────────────────────────────────────────────
 - name: Check if bundle already exists on AAP node
   ansible.builtin.stat:
     path: "{{ aap_bundle_dest }}"
@@ -42,6 +56,9 @@
   become: false
   when: not bundle_stat.stat.exists
 
+# ─────────────────────────────────────────────────────────────
+# Step 3 ▸ Extract bundle on AAP VM
+# ─────────────────────────────────────────────────────────────
 - name: Check if setup directory already extracted
   ansible.builtin.stat:
     path: "{{ aap_setup_dir }}"
@@ -50,17 +67,20 @@
 - name: Extract bundle on AAP node
   ansible.builtin.unarchive:
     src: "{{ aap_bundle_dest }}"
-    dest: "/opt"
+    dest: /opt
     remote_src: yes
   when: not setup_dir_stat.stat.exists
 
-- name: Create single-node inventory
+# ─────────────────────────────────────────────────────────────
+# Step 4 ▸ Create inventory for setup.sh
+# ─────────────────────────────────────────────────────────────
+- name: Create single-node inventory file for AAP installer
   ansible.builtin.copy:
     dest: "{{ aap_setup_dir }}/inventory"
     mode: "0600"
     content: |
       [automationcontroller]
-      {{ inventory_hostname }}
+      {{ hostvars[inventory_hostname].ansible_host }}
 
       [all:vars]
       admin_password='{{ aap_admin_password }}'
@@ -70,8 +90,10 @@
       pg_username='awx'
       pg_password='{{ aap_pg_password }}'
       registry_url='{{ aap_registry_url }}'
-  no_log: true
 
+# ─────────────────────────────────────────────────────────────
+# Step 5 ▸ Run AAP installer
+# ─────────────────────────────────────────────────────────────
 - name: Execute ./setup.sh on the AAP VM
   ansible.builtin.command: ./setup.sh
   args:

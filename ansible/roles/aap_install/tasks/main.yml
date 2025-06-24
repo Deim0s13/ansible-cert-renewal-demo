@@ -1,4 +1,3 @@
----
 # ─────────────────────────────────────────────────────────────
 # Role Tasks: aap_install
 # Purpose   : Install AAP from jump → AAP VM
@@ -74,6 +73,12 @@
 # ─────────────────────────────────────────────────────────────
 # Step 4 ▸ Create inventory for setup.sh
 # ─────────────────────────────────────────────────────────────
+- name: Ensure AAP setup directory exists
+  ansible.builtin.file:
+    path: "{{ aap_setup_dir }}"
+    state: directory
+    mode: "0755"
+
 - name: Create single-node inventory file for AAP installer
   ansible.builtin.copy:
     dest: "{{ aap_setup_dir }}/inventory"

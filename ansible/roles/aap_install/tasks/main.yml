@@ -1,4 +1,14 @@
 ---
+- name: Assert AAP vault variables are defined
+  ansible.builtin.assert:
+    that:
+      - aap_admin_password is defined
+      - aap_pg_password is defined
+    fail_msg: >
+      One or more required vault variables are not defined. Ensure 'aap_admin_password'
+      and 'aap_pg_password' are present in 'group_vars/aap/vault.yml' and that the vault
+      is being loaded correctly.
+
 - name: Ensure prerequisite RPMs are present
   ansible.builtin.package:
     name:

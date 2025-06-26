@@ -1,6 +1,7 @@
+---
 # ─────────────────────────────────────────────────────────────
-# Role Tasks: aap_install
-# Purpose   : Install AAP from jump → AAP VM
+# Role Tasks ▸ aap_install
+# Purpose    : Copy bundle, unpack, run setup.sh
 # ─────────────────────────────────────────────────────────────
 
 # ─────────────────────────────────────────────────────────────
@@ -9,12 +10,11 @@
 - name: Assert AAP vault variables are defined
   ansible.builtin.assert:
     that:
-      - aap_admin_password is defined
-      - aap_pg_password is defined
+      - aap_admin_password | length > 0
+      - aap_pg_password    | length > 0
     fail_msg: >
-      One or more required vault variables are not defined. Ensure 'aap_admin_password'
-      and 'aap_pg_password' are present in 'group_vars/aap/vault.yml' and that the vault
-      is being loaded correctly.
+      One or both vault variables are missing.  Ensure they exist in
+      group_vars/aap/vault.yml and the vault is loaded.
 
 # ─────────────────────────────────────────────────────────────
 # Step 1 ▸ Install prerequisites on AAP VM
@@ -28,21 +28,21 @@
       - unzip
     state: present
 
-- name: Ensure /var/opt exists
+- name: Ensure /opt exists (LV should already be mounted)
   ansible.builtin.file:
-    path: /var/opt
+    path: /opt
     state: directory
     mode: "0755"
 
 # ─────────────────────────────────────────────────────────────
-# Step 2 ▸ Rsync AAP bundle from jump-host to AAP VM
+# Step 2 ▸ Rsync bundle from jump host to AAP VM
 # ─────────────────────────────────────────────────────────────
 - name: Check if bundle already exists on AAP node
   ansible.builtin.stat:
     path: "{{ aap_bundle_dest }}"
   register: bundle_stat
 
-- name: Rsync bundle from jump host to AAP node
+- name: Rsync bundle from jump host → AAP node
   ansible.builtin.synchronize:
     src: "{{ aap_bundle_src }}"
     dest: "{{ aap_bundle_dest }}"
@@ -58,27 +58,37 @@
 # ─────────────────────────────────────────────────────────────
 # Step 3 ▸ Extract bundle on AAP VM
 # ─────────────────────────────────────────────────────────────
-- name: Check if setup directory already extracted
-  ansible.builtin.stat:
-    path: "{{ aap_setup_dir }}"
-  register: setup_dir_stat
-
-- name: Extract bundle on AAP node
+- name: Unpack bundle under /opt
   ansible.builtin.unarchive:
     src: "{{ aap_bundle_dest }}"
     dest: /opt
     remote_src: yes
-  when: not setup_dir_stat.stat.exists
+  register: unarchive_result
 
 # ─────────────────────────────────────────────────────────────
-# Step 4 ▸ Create inventory for setup.sh
+# Step 4 ▸ Auto-discover extracted directory (version-proof)
 # ─────────────────────────────────────────────────────────────
-- name: Ensure AAP setup directory exists
-  ansible.builtin.file:
-    path: "{{ aap_setup_dir }}"
-    state: directory
-    mode: "0755"
+- name: Locate setup.sh after extraction
+  ansible.builtin.find:
+    paths: /opt
+    patterns: setup.sh
+    recurse: yes
+    file_type: file
+  register: setup_search
+  changed_when: false
 
+- name: Fail if setup.sh not found
+  ansible.builtin.fail:
+    msg: "setup.sh was not located under /opt after extraction."
+  when: setup_search.matched == 0
+
+- name: Set aap_setup_dir fact (directory of setup.sh)
+  ansible.builtin.set_fact:
+    aap_setup_dir: "{{ setup_search.files[0].path | dirname }}"
+
+# ─────────────────────────────────────────────────────────────
+# Step 5 ▸ Create inventory for setup.sh
+# ─────────────────────────────────────────────────────────────
 - name: Create single-node inventory file for AAP installer
   ansible.builtin.copy:
     dest: "{{ aap_setup_dir }}/inventory"
@@ -97,12 +107,10 @@
       registry_url='{{ aap_registry_url }}'
 
 # ─────────────────────────────────────────────────────────────
-# Step 5 ▸ Run AAP installer
+# Step 6 ▸ Run AAP installer
 # ─────────────────────────────────────────────────────────────
-- name: Execute ./setup.sh on the AAP VM
-  ansible.builtin.command: ./setup.sh
-  args:
-    chdir: "{{ aap_setup_dir }}"
+- name: Execute AAP installer
+  ansible.builtin.command: "{{ aap_setup_dir }}/setup.sh"
   register: aap_install
   changed_when: "'Complete' in aap_install.stdout"
   environment:

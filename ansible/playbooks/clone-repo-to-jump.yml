@@ -2,65 +2,77 @@
 - name: Clone Ansible Demo Repository onto Jump Host
   hosts: jump
   gather_facts: false
-  become: true
+  become: true               # you already escalate to install git
 
   vars:
-    git_repo_url: "https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
-    repo_version: "main"
+    git_repo_url   : "https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
+    repo_version   : "main"
     repo_clone_path: "/home/rheluser/{{ git_repo_url | basename | regex_replace('\\.git$', '') }}"
 
   tasks:
 
     # ─────────────────────────────────────────────────────
-    # Step 1: Ensure Git is Available
+    # Step 1 ▸ Ensure Git is available
     # ─────────────────────────────────────────────────────
     - name: Ensure Git is installed on the Jump Host
       package:
-        name: git
+        name : git
         state: present
 
     # ─────────────────────────────────────────────────────
-    # Step 2: Check if destination path exists and is a Git repo
+    # Step 2 ▸ Detect existing path / git repo status
     # ─────────────────────────────────────────────────────
     - name: Stat the potential repository path
       stat:
         path: "{{ repo_clone_path }}"
       register: repo_path_stat
 
-    - name: Check if .git subdirectory exists within the potential repository
+    - name: Check if .git directory exists
       stat:
         path: "{{ repo_clone_path }}/.git"
       register: git_dir_stat
-      # Only run this if the repo_clone_path actually exists and is a directory
-      when: repo_path_stat.stat.exists and repo_path_stat.stat.isdir
+      when: repo_path_stat.stat.isdir | default(false)
 
     # ─────────────────────────────────────────────────────
-    # Step 3: Clean up if directory exists but is NOT a Git repo
+    # Step 3 ▸ Remove non-git directory that blocks clone
     # ─────────────────────────────────────────────────────
-    - name: Remove non-git directory if it exists and is not a Git repo
-      ansible.builtin.file:
-        path: "{{ repo_clone_path }}"
+    - name: Remove non-git directory (if present)
+      file:
+        path : "{{ repo_clone_path }}"
         state: absent
-      when: >
-        repo_path_stat.stat.exists and
-        repo_path_stat.stat.isdir and
-        not git_dir_stat.stat.exists
+      when:
+        - repo_path_stat.stat.isdir | default(false)
+        - not git_dir_stat.stat.exists | default(false)
 
     # ─────────────────────────────────────────────────────
-    # Step 4: Ensure Git repository is present and up-to-date
+    # Step 4 ▸ Clone (or hard-reset & pull) repository
     # ─────────────────────────────────────────────────────
-    - name: Clone or pull Git repository
-      become: true
-      become_user: rheluser
+    - name: Clone Git repository (if absent)
+      become       : true
+      become_user  : rheluser
       git:
-        repo: "{{ git_repo_url }}"
-        dest: "{{ repo_clone_path }}"
+        repo   : "{{ git_repo_url }}"
+        dest   : "{{ repo_clone_path }}"
         version: "{{ repo_version }}"
-        update: true
+        update : false          # only clone, no pull here
+      when: not repo_path_stat.stat.exists or
+            (repo_path_stat.stat.isdir and not git_dir_stat.stat.exists | default(false))
+
+    - name: Reset & pull latest (if repo already exists, even with local mods)
+      become      : true
+      become_user : rheluser
+      git:
+        repo   : "{{ git_repo_url }}"
+        dest   : "{{ repo_clone_path }}"
+        version: "{{ repo_version }}"
+        update : true           # pull new commits
+        force  : yes            # **discard local modifications / untracked files**
+        reset  : yes            # hard-reset to requested version before pulling
+      when: git_dir_stat.stat.exists | default(false)
 
     # ─────────────────────────────────────────────────────
-    # Step 5: Confirm Repo Path
+    # Step 5 ▸ Confirm success
     # ─────────────────────────────────────────────────────
     - name: Confirm Git repository is available on Jump Host
       debug:
-        msg: "Repository is now available at {{ repo_clone_path }}"
+        msg: "Repository is now available at {{ repo_clone_path }} (branch: {{ repo_version }})"

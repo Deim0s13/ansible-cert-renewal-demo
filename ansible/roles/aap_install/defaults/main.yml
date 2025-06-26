@@ -1,21 +1,18 @@
----
 # ─────────────────────────────────────────────────────────────
 # Defaults File ▸ aap_install Role
 # Purpose       : Non-sensitive default variables for AAP setup
 # ─────────────────────────────────────────────────────────────
 
 # ─────────────────────────────────────────────────────────────
-# Bundle paths
+# Bundle paths (all under /opt now)
 # ─────────────────────────────────────────────────────────────
-aap_bundle_src: "/var/tmp/aap-setup-2.5.tar.gz" # Location on jump-host
-aap_bundle_dest: "/var/opt/aap-setup-2.5.tar.gz" # Destination on AAP VM
-aap_setup_dir: "/var/opt/ansible-automation-platform-setup"
+aap_bundle_src: "/var/tmp/aap-setup-2.5.tar.gz" # on jump host
+aap_bundle_dest: "/opt/aap-setup-2.5.tar.gz" # on AAP VM
+aap_setup_dir: "/opt/ansible-automation-platform-setup" # may be overwritten at runtime
 
 # ─────────────────────────────────────────────────────────────
 # Registry and credentials
 # ─────────────────────────────────────────────────────────────
 aap_registry_url: registry.redhat.io
-
-# These are looked up from the environment but can be overridden
-aap_admin_password: "{{ lookup('env', 'AAP_ADMIN_PASSWORD') | default('', true) }}"
-aap_pg_password: "{{ lookup('env', 'AAP_PG_PASSWORD')    | default('', true) }}"
+aap_admin_password: "{{ lookup('env','AAP_ADMIN_PASSWORD') | default('', true) }}"
+aap_pg_password: "{{ lookup('env','AAP_PG_PASSWORD')    | default('', true) }}"

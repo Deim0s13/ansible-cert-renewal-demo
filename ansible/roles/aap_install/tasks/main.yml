@@ -4,6 +4,14 @@
 # Purpose    : Copy bundle, unpack, run setup.sh
 # ─────────────────────────────────────────────────────────────
 
+# --- NEW DIAGNOSTIC TASK (Name corrected) ---
+- name: Debug - Check aap_admin_password at role start
+  ansible.builtin.debug:
+    msg: "aap_admin_password value: '{{ aap_admin_password | default('UNDEFINED_OR_EMPTY') }}'"
+  no_log: false # Temporarily set to false to see value
+  # Run this task unconditionally to see its state
+# --- END NEW DIAGNOSTIC TASK ---
+
 # ─────────────────────────────────────────────────────────────
 # Step 0 ▸ Assert vault variables are present
 # ─────────────────────────────────────────────────────────────

@@ -42,10 +42,28 @@
     # ─────────────────────────────────────────────────────
     # Step 2 – Ensure host key is in ~/.ssh/known_hosts
     # ─────────────────────────────────────────────────────
-    - name: Scan & record AAP host SSH key
+    - name: Scan AAP host key (tolerate initial failure)
+      ansible.builtin.command: "{{ aap_keyscan_cmd }}"
+      register: keyscan_result
+      changed_when: false     # we’re only gathering data
+      failed_when: false      # don’t kill the play yet
+
+    - name: Show ssh-keyscan stderr when it fails
+      ansible.builtin.debug:
+        msg: |
+          ssh-keyscan failed (rc={{ keyscan_result.rc }}):
+          {{ keyscan_result.stderr | default('') }}
+      when: keyscan_result.rc != 0
+
+    - name: Abort if we could not fetch the host key
+      ansible.builtin.fail:
+        msg: "Unable to retrieve SSH host key from {{ aap_host_ip }}:{{ aap_port }}"
+      when: keyscan_result.rc != 0
+
+    - name: Record AAP host SSH key in known_hosts
       ansible.builtin.known_hosts:
         name: "{{ aap_known_hosts_entry }}"
-        key: "{{ lookup('pipe', aap_keyscan_cmd) }}"
+        key:  "{{ keyscan_result.stdout }}"
         hash_host: false
         state: present
         path: "{{ ansible_env.HOME }}/.ssh/known_hosts"

@@ -48,7 +48,7 @@
 - name: Step 4 – Bootstrap SSH Connectivity
   import_playbook: bootstrap-ssh.yml
   vars:
-    aap_host_ip:  "10.0.1.12"
+    aap_host_ip: "10.0.1.12"
     aap_target_user: "rheluser"
     aap_target_ssh_key: "{{ private_key_path }}"
     jump_host_inventory_path: "{{ jump_host_inventory_path }}"

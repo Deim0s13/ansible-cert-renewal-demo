@@ -113,6 +113,7 @@
       pg_username='awx'
       pg_password='{{ aap_pg_password }}'
       registry_url='{{ aap_registry_url }}'
+      redis_mode=standalone
 
 # ─────────────────────────────────────────────────────────────
 # Step 6 ▸ Run AAP installer

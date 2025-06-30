@@ -9,11 +9,11 @@
   hosts: jump
   gather_facts: false
   vars:
-    # ── Connection parameters (override via -e) ──
-    aap_host_ip: "{{ aap_host_ip | default('10.0.1.12') }}"
-    aap_port: "{{ aap_port | default('22') }}"
-    aap_target_user: "{{ aap_target_user | default('rheluser') }}"
-    aap_target_ssh_key: "{{ aap_target_ssh_key | default('/home/rheluser/.ssh/ansible-demo-key') }}"
+    # ── Connection defaults (override via -e or inventory) ──
+    aap_host_ip:        "10.0.1.12"
+    aap_port:           "22"
+    aap_target_user:    "rheluser"
+    aap_target_ssh_key: "/home/rheluser/.ssh/ansible-demo-key"
 
   tasks:
 
@@ -45,8 +45,8 @@
     - name: Scan & record AAP host SSH key
       ansible.builtin.known_hosts:
         name: "{{ aap_known_hosts_entry }}"
-        key: "{{ lookup('pipe', aap_keyscan_cmd) }}"
-        hash_host: false            # keep it human-readable
+        key:  "{{ lookup('pipe', aap_keyscan_cmd) }}"
+        hash_host: false
         state: present
         path: "{{ ansible_env.HOME }}/.ssh/known_hosts"
 

@@ -48,14 +48,25 @@
         mode: '0600'
 
     # ─────────────────────────────────────────────────────
-    # Step 2b – Wait for SSH to respond (network level)
+    # Step 2b – Scan & record AAP host SSH key
     # ─────────────────────────────────────────────────────
-    - name: Wait for SSH port on AAP host
-      ansible.builtin.wait_for:
-        host: "{{ aap_host_ip }}"
-        port: "{{ aap_port | default('22') }}"
-        state: started
-        timeout: 30
+    - name: Scan AAP host public key
+      ansible.builtin.command: >
+        ssh-keyscan -T 5 -p {{ aap_port | default('22') }} {{ aap_host_ip }}
+      register: keyscan_out
+      changed_when: false
+      delegate_to: localhost
+      retries: 3
+      delay: 3
+      until: keyscan_out.rc == 0 and keyscan_out.stdout != ''
+
+    - name: Record AAP host SSH key in known_hosts
+      ansible.builtin.known_hosts:
+        path: "{{ ansible_user_dir }}/.ssh/known_hosts"
+        name: "{{ aap_host_ip }}"
+        key: "{{ keyscan_out.stdout }}"
+        hash_host: false
+        state: present
       delegate_to: localhost
 
     # ─────────────────────────────────────────────────────

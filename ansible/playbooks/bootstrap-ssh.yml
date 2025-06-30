@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────
+# Playbook: bootstrap-ssh.yml
+# Purpose : From the **jump** host, prime SSH trust & validate
+#           Ansible connectivity to the AAP node.
+# ─────────────────────────────────────────────────────────────
+
+- name: Bootstrap SSH connectivity from jump → aap-host
+  hosts: jump
+  gather_facts: false
+  vars:
+    ansible_user_dir: /home/rheluser
+    aap_host_ip: "{{ aap_host_ip }}"
+    aap_target_user: "{{ aap_target_user }}"
+    aap_target_ssh_key: "{{ aap_target_ssh_key }}"
+    jump_host_inventory_path: "{{ jump_host_inventory_path }}"
+  tasks:
+
+    # ─────────────────────────────────────────────────────
+    # Step 0 – Show the connection variables in play context
+    # ─────────────────────────────────────────────────────
+    - name: Debug connection variables
+      ansible.builtin.debug:
+        msg: >
+          Connecting to {{ aap_host_ip }} as {{ aap_target_user }}
+          using key {{ aap_target_ssh_key }}
+
+    # ─────────────────────────────────────────────────────
+    # Step 1 – Ensure the AAP host key is in known_hosts
+    # ─────────────────────────────────────────────────────
+    - name: Scan & record AAP host SSH key
+      ansible.builtin.known_hosts:
+        path: "{{ ansible_user_dir }}/.ssh/known_hosts"
+        name: "{{ aap_host_ip }}"
+        key: "{{ lookup('pipe', 'ssh-keyscan -H -p 22 ' + aap_host_ip) }}"
+        state: present
+
+    # ─────────────────────────────────────────────────────
+    # Step 2 – Verify Ansible can ping the AAP host
+    # ─────────────────────────────────────────────────────
+    - name: Ansible ping test to aap-host (via CLI)
+      ansible.builtin.shell: |
+        ANSIBLE_CONFIG="{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/ansible.cfg" \
+        {{ ansible_user_dir }}/.local/bin/ansible aap-host \
+          -i "{{ jump_host_inventory_path }}" \
+          -m ping -o
+      register: ping_result
+      changed_when: false
+      failed_when: ping_result.rc != 0
+
+    - name: Display ping output
+      ansible.builtin.debug:
+        var: ping_result.stdout_lines

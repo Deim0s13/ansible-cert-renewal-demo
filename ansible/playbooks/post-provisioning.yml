@@ -1,8 +1,7 @@
----
 # ─────────────────────────────────────────────────────────────
 # Playbook: post-provision.yml
 # Purpose : Orchestrate jump-host prep, bundle upload, repo clone,
-#           and disk provisioning for the AAP host.
+#           SSH bootstrap, and disk provisioning for the AAP host.
 # ─────────────────────────────────────────────────────────────
 
 - name: Post-Provisioning Automation on Jump Host
@@ -14,7 +13,6 @@
     repo_url: "https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
     target_dir: "{{ ansible_user_dir }}/{{ repo_url | basename | regex_replace('\\.git$', '') }}"
     jump_host_inventory_path: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/inventory/demo-hosts"
-
   tasks: []
 
 # ─────────────────────────────────────────────────────
@@ -45,44 +43,21 @@
   import_playbook: clone-repo-to-jump.yml
 
 # ─────────────────────────────────────────────────────
-# Step 4 – Trigger AAP Disk Resize (run from jump host)
+# Step 4 – Bootstrap SSH connectivity from jump host → aap-host
 # ─────────────────────────────────────────────────────
-- name: Step 4 – Resize AAP Disk from Jump Host
-  hosts: jump
-  gather_facts: false
+- name: Step 4 – Bootstrap SSH Connectivity
+  import_playbook: bootstrap-ssh.yml
   vars:
+    aap_host_ip:  "10.0.1.12"
+    aap_target_user: "rheluser"
+    aap_target_ssh_key: "{{ private_key_path }}"
+    jump_host_inventory_path: "{{ jump_host_inventory_path }}"
+
+# ─────────────────────────────────────────────────────
+# Step 5 – Trigger AAP Disk Resize (run from jump host)
+# ─────────────────────────────────────────────────────
+- name: Step 5 – Resize AAP Disk from Jump Host
+  import_playbook: resize-disks-aap.yml
+  vars:
+    jump_host_inventory_path: "{{ jump_host_inventory_path }}"
     ansible_user_dir: /home/rheluser
-    jump_host_inventory_path: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/inventory/demo-hosts"
-
-  tasks:
-    - name: Debug Ansible configuration and SSH for inner playbook
-      ansible.builtin.shell: |
-        # Ensure correct directory for relative paths (this outer comment is fine)
-        cd "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks"
-
-        echo "ANSIBLE_CONFIG environment variable: $ANSIBLE_CONFIG"
-        echo "Content of $ANSIBLE_CONFIG:"
-        cat "$ANSIBLE_CONFIG"
-
-        echo "Ansible --version output with specified config:"
-        ANSIBLE_CONFIG="$ANSIBLE_CONFIG" {{ ansible_user_dir }}/.local/bin/ansible --version
-
-        echo "Attempting a simulated SSH connection from Ansible CLI:"
-        ANSIBLE_CONFIG="$ANSIBLE_CONFIG" {{ ansible_user_dir }}/.local/bin/ansible aap-host -i "{{ jump_host_inventory_path }}" -m ping -vvv
-      register: debug_output_inner_env
-      changed_when: false
-      failed_when: false # Allow it to fail so we see the output
-
-    - name: Display inner Ansible environment debug
-      ansible.builtin.debug:
-        var: debug_output_inner_env.stdout_lines
-
-    - name: Run resize-disks-aap.yml from the jump host
-      ansible.builtin.shell: |
-        export ANSIBLE_CONFIG="{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/ansible.cfg"
-        {{ ansible_user_dir }}/.local/bin/ansible-playbook \
-          -i "{{ jump_host_inventory_path }}" \
-          "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks/resize-disks-aap.yml"
-      args:
-        chdir: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks"
-      changed_when: false

@@ -103,7 +103,7 @@
     mode: "0600"
     content: |
       [automationcontroller]
-      localhost ansible_connection=local ansible_python_interpreter=/usr/bin/python3
+      {{ hostvars[inventory_hostname].ansible_host}}
 
       [all:vars]
       admin_password='{{ aap_admin_password }}'

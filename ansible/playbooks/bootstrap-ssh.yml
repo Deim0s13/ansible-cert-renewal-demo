@@ -62,8 +62,8 @@
 
     - name: Record AAP host SSH key in known_hosts
       ansible.builtin.known_hosts:
-        name: "{{ aap_known_hosts_entry }}"
-        key:  "{{ keyscan_result.stdout }}"
+        name: "{{ aap_host_ip }}"
+        key: "{{ keyscan_result.stdout }}"
         hash_host: false
         state: present
         path: "{{ ansible_env.HOME }}/.ssh/known_hosts"

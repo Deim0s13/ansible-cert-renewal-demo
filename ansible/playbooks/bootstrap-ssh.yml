@@ -1,52 +1,62 @@
+---
 # ─────────────────────────────────────────────────────────────
-# Playbook: bootstrap-ssh.yml
-# Purpose : From the **jump** host, prime SSH trust & validate
-#           Ansible connectivity to the AAP node.
+# Playbook : bootstrap-ssh.yml
+# Purpose  : Prepare password-less SSH from the jump host to
+#            the AAP node (add key + connectivity test).
 # ─────────────────────────────────────────────────────────────
 
-- name: Bootstrap SSH connectivity from jump → aap-host
+- name: Bootstrap SSH connectivity from Jump Host → AAP Host
   hosts: jump
   gather_facts: false
   vars:
-    ansible_user_dir: /home/rheluser
-    aap_host_ip: "{{ aap_host_ip }}"
-    aap_target_user: "{{ aap_target_user }}"
-    aap_target_ssh_key: "{{ aap_target_ssh_key }}"
-    jump_host_inventory_path: "{{ jump_host_inventory_path }}"
+    # ── Connection parameters (override via -e) ──
+    aap_host_ip: "{{ aap_host_ip | default('10.0.1.12') }}"
+    aap_port: "{{ aap_port | default('22') }}"
+    aap_target_user: "{{ aap_target_user | default('rheluser') }}"
+    aap_target_ssh_key: "{{ aap_target_ssh_key | default('/home/rheluser/.ssh/ansible-demo-key') }}"
+
   tasks:
 
     # ─────────────────────────────────────────────────────
-    # Step 0 – Show the connection variables in play context
+    # Step 0 – Echo what we’re about to do
     # ─────────────────────────────────────────────────────
-    - name: Debug connection variables
+    - name: Debug chosen SSH parameters
       ansible.builtin.debug:
         msg: >
-          Connecting to {{ aap_host_ip }} as {{ aap_target_user }}
-          using key {{ aap_target_ssh_key }}
+          Preparing SSH from jump host → {{ aap_host_ip }}:{{ aap_port }}
+          as {{ aap_target_user }} (key {{ aap_target_ssh_key }})
 
     # ─────────────────────────────────────────────────────
-    # Step 1 – Ensure the AAP host key is in known_hosts
+    # Step 1 – Build helper vars (host string & key-scan cmd)
+    # ─────────────────────────────────────────────────────
+    - name: Derive known_hosts entry + ssh-keyscan command
+      ansible.builtin.set_fact:
+        aap_known_hosts_entry: >
+          {{ '[%s]:%s' | format(aap_host_ip, aap_port)
+             if (aap_port | int) != 22 else aap_host_ip }}
+        aap_keyscan_cmd: >
+          {{ 'ssh-keyscan -H -p %s %s' | format(aap_port, aap_host_ip)
+             if (aap_port | int) != 22 else
+             'ssh-keyscan -H %s' | format(aap_host_ip) }}
+
+    # ─────────────────────────────────────────────────────
+    # Step 2 – Ensure host key is in ~/.ssh/known_hosts
     # ─────────────────────────────────────────────────────
     - name: Scan & record AAP host SSH key
       ansible.builtin.known_hosts:
-        path: "{{ ansible_user_dir }}/.ssh/known_hosts"
-        name: "{{ aap_host_ip }}"
-        key: "{{ lookup('pipe', 'ssh-keyscan -H -p 22 ' + aap_host_ip) }}"
+        name: "{{ aap_known_hosts_entry }}"
+        key: "{{ lookup('pipe', aap_keyscan_cmd) }}"
+        hash_host: false            # keep it human-readable
         state: present
+        path: "{{ ansible_env.HOME }}/.ssh/known_hosts"
 
     # ─────────────────────────────────────────────────────
-    # Step 2 – Verify Ansible can ping the AAP host
+    # Step 3 – Verify connection with Ansible ping
     # ─────────────────────────────────────────────────────
-    - name: Ansible ping test to aap-host (via CLI)
-      ansible.builtin.shell: |
-        ANSIBLE_CONFIG="{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/ansible.cfg" \
-        {{ ansible_user_dir }}/.local/bin/ansible aap-host \
-          -i "{{ jump_host_inventory_path }}" \
-          -m ping -o
-      register: ping_result
-      changed_when: false
-      failed_when: ping_result.rc != 0
-
-    - name: Display ping output
-      ansible.builtin.debug:
-        var: ping_result.stdout_lines
+    - name: Test password-less SSH connectivity
+      ansible.builtin.ping:
+      delegate_to: "{{ aap_host_ip }}"
+      vars:
+        ansible_user: "{{ aap_target_user }}"
+        ansible_port: "{{ aap_port }}"
+        ansible_ssh_private_key_file: "{{ aap_target_ssh_key }}"

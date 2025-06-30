@@ -1,68 +1,89 @@
 ---
 # ─────────────────────────────────────────────────────────────
-# Playbook : bootstrap-ssh.yml
-# Purpose  : Prepare password-less SSH from the jump host to
-#            the AAP node (add key + connectivity test).
+# Playbook: bootstrap-ssh.yml
+# Purpose : From the jump host, guarantee password-less SSH
+#           access to the AAP node (known_hosts, key, test).
 # ─────────────────────────────────────────────────────────────
 
-- name: Bootstrap SSH connectivity from Jump Host → AAP Host
+- name: Bootstrap password-less SSH from jump → AAP host
   hosts: jump
   gather_facts: false
+
   vars:
-    # ── Connection defaults (override via -e or inventory) ──
-    aap_host_ip: "10.0.1.12"
-    aap_port: "22"
-    aap_target_user: "rheluser"
-    aap_target_ssh_key: "/home/rheluser/.ssh/ansible-demo-key"
+    # ─────────────────────────────────────────────────────
+    # Core variables (fall-backs keep existing defaults)
+    # ─────────────────────────────────────────────────────
+    ansible_user_dir: /home/rheluser
+
+    # Target AAP host connection details
+    aap_host_ip: "{{ aap_host_ip       | default('10.0.1.12') }}"
+    aap_port: "{{ aap_port          | default(22) | int }}"
+    aap_target_user: "{{ aap_target_user   | default('rheluser') }}"
+    aap_target_ssh_key: "{{ aap_target_ssh_key| default('/home/rheluser/.ssh/ansible-demo-key') }}"
+
+    # Convenience path(s)
+    jump_known_hosts: "{{ ansible_user_dir }}/.ssh/known_hosts"
 
   tasks:
-
     # ─────────────────────────────────────────────────────
-    # Step 0  – Debug chosen SSH settings
+    # Step 0 – Debug chosen parameters
     # ─────────────────────────────────────────────────────
     - name: Debug chosen SSH parameters
       ansible.builtin.debug:
         msg: |
-          Will connect to {{ aap_host_ip }}:{{ aap_port | default('22') }}
-          as {{ aap_target_user }} using key {{ aap_target_ssh_key }}
+          ➤ AAP host : {{ aap_host_ip }}:{{ aap_port }}
+          ➤ Key file : {{ aap_target_ssh_key }}
+          ➤ Jump user : {{ ansible_user }}
+      changed_when: false
 
     # ─────────────────────────────────────────────────────
-    # Step 1  – Scan & record AAP host SSH key
-    # (plain key, no hash, no :port for default 22)
+    # Step 1 – Ensure key + .ssh/ perms on jump host
     # ─────────────────────────────────────────────────────
-    - name: Scan & record AAP host SSH key
-      ansible.builtin.known_hosts:
-        path: "{{ ansible_user_dir }}/.ssh/known_hosts"
-        name: "{{ aap_host_ip }}"
-        key: "{{ lookup('pipe', 'ssh-keyscan -T 5 ' + aap_host_ip) }}"
-        state: present
-        hash_host: no
+    - name: Ensure ~/.ssh directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/.ssh"
+        state: directory
+        mode: "0700"
 
-    # ─────────────────────────────────────────────────────
-    # Step 2a – Copy private key (kept exactly as before)
-    # ─────────────────────────────────────────────────────
-    - name: Copy private key to jump host
+    - name: Copy private key onto jump host (if not already there)
       ansible.builtin.copy:
         src: "{{ aap_target_ssh_key }}"
-        dest: "{{ ansible_user_dir }}/.ssh/id_rsa"
-        mode: '0600'
+        dest: "{{ aap_target_ssh_key }}"
+        mode: "0600"
+        owner: "{{ ansible_user | default('rheluser') }}"
+      when: aap_target_ssh_key is file
 
     # ─────────────────────────────────────────────────────
-    # Step 2b – Scan & record AAP host SSH key
+    # Step 2a – Wait until port 22 is actually listening
     # ─────────────────────────────────────────────────────
-    - name: Scan AAP host public key
-      ansible.builtin.command: >
-        ssh-keyscan -T 5 -p {{ aap_port | default('22') }} {{ aap_host_ip }}
-      register: keyscan_out
-      changed_when: false
+    - name: Wait for SSH port on AAP host to become reachable
+      ansible.builtin.wait_for:
+        host: "{{ aap_host_ip }}"
+        port: "{{ aap_port }}"
+        timeout: 60
+        state: started
       delegate_to: localhost
-      retries: 3
-      delay: 3
-      until: keyscan_out.rc == 0 and keyscan_out.stdout != ''
+      changed_when: false
 
-    - name: Record AAP host SSH key in known_hosts
+    # ─────────────────────────────────────────────────────
+    # Step 2b – Scan & record AAP host public key (retry-safe)
+    # ─────────────────────────────────────────────────────
+    - name: Scan AAP host SSH key
+      ansible.builtin.command: >
+        ssh-keyscan -T 5 -p {{ aap_port }} {{ aap_host_ip }}
+      register: keyscan_out
+      delegate_to: localhost
+      changed_when: false
+      retries: 3
+      delay: 4
+      until: keyscan_out.rc == 0 and (keyscan_out.stdout | length) > 0
+
+    # ─────────────────────────────────────────────────────
+    # Step 2c – Write / update known_hosts
+    # ─────────────────────────────────────────────────────
+    - name: Record AAP host key in known_hosts
       ansible.builtin.known_hosts:
-        path: "{{ ansible_user_dir }}/.ssh/known_hosts"
+        path: "{{ jump_known_hosts }}"
         name: "{{ aap_host_ip }}"
         key: "{{ keyscan_out.stdout }}"
         hash_host: false
@@ -70,21 +91,24 @@
       delegate_to: localhost
 
     # ─────────────────────────────────────────────────────
-    # Step 2c – Test password-less SSH
-    # (unchanged from your original working logic)
+    # Step 3 – Test password-less SSH connectivity
     # ─────────────────────────────────────────────────────
     - name: Test password-less SSH connectivity
       ansible.builtin.shell: |
         ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            -i "{{ aap_target_ssh_key }}" \
-            -p {{ aap_port | default('22') }} \
+            -i {{ aap_target_ssh_key }} \
+            -p {{ aap_port }} \
             {{ aap_target_user }}@{{ aap_host_ip }} \
             'echo OK'
       register: ssh_test
       changed_when: false
-      delegate_to: localhost
+      retries: 3
+      delay: 5
+      until: ssh_test.rc == 0 and "'OK'" in ssh_test.stdout
 
-    - name: Fail if SSH test did not return OK
-      ansible.builtin.fail:
-        msg: "Password-less SSH failed."
-      when: ssh_test.stdout.strip() != "OK"
+    # ─────────────────────────────────────────────────────
+    # Step 4 – Final confirmation
+    # ─────────────────────────────────────────────────────
+    - name: SSH bootstrap completed
+      ansible.builtin.debug:
+        msg: "Password-less access to {{ aap_host_ip }} confirmed."

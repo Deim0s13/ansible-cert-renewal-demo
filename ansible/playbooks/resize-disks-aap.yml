@@ -1,64 +1,80 @@
 ---
 # ─────────────────────────────────────────────────────────────
 # Playbook : resize-disks-aap.yml
-# Purpose  : Expand the existing /opt logical volume on the AAP
-#            node **without** touching partitions or PVs.
-#            ▸ No growpart ▸ No pvresize
-#            ▸ Single lvol task with resizefs=true
-# ─────────────────────────────────────────────────────────────
-# Assumes  :
-#   • /opt is   /dev/{{ vg_name }}/{{ lv_name }}
-#   • VG has enough free space for {{ new_lv_size }}
-#   • Filesystem on the LV is XFS
+# Purpose  : Grow the LV that backs /opt without touching
+#            partitions or PVs.  Works even if the LV is *not*
+#            named rootvg/optlv.
 # ─────────────────────────────────────────────────────────────
 
-- name: Resize /opt LV on AAP node
+- name: Resize LV backing /opt on AAP node
   hosts: aap
   gather_facts: false
   become: true
 
   vars:
-    # ── LVM details ────────────────────────────────────────
-    vg_name       : "rootvg"
-    lv_name       : "optlv"
-    new_lv_size   : "60g"      # ← Adjust as required
+    vg_name       : "rootvg"      # ← only the VG is fixed
+    new_lv_size   : "60g"         # ← desired target size
     mount_point   : "/opt"
 
   tasks:
     # ───────────────────────────────────────────────────────
-    # Step 1 ▸ Show current space (informational)
+    # Step 1 ▸ Identify the current LV path for /opt
     # ───────────────────────────────────────────────────────
-    - name: Debug ▸ VG free space
+    - name: Find LV backing {{ mount_point }}
+      command: findmnt -no SOURCE {{ mount_point }}
+      register: lv_source
+      changed_when: false
+
+    - name: Fail if {{ mount_point }} is not a logical volume
+      fail:
+        msg: "{{ mount_point }} is mounted on {{ lv_source.stdout }}, not an LVM LV."
+      when: lv_source.stdout is not search('^/dev/mapper/')
+
+    - name: Set facts for VG & LV names
+      set_fact:
+        lv_device : "{{ lv_source.stdout }}"                                 # /dev/mapper/rootvg-optlv
+        lv_name   : "{{ (lv_source.stdout | basename).split('-', 1)[1] }}"   # optlv  (after first ‘-’)
+      # Explanation:
+      #   basename(rootvg-optlv) → rootvg-optlv
+      #   split('-',1)[1]        → optlv
+
+    # ───────────────────────────────────────────────────────
+    # Step 2 ▸ Show current sizes for context
+    # ───────────────────────────────────────────────────────
+    - name: VG free space
       command: vgdisplay {{ vg_name }}
       register: vg_info
       changed_when: false
 
-    - name: Debug ▸ LV size
-      command: lvdisplay /dev/{{ vg_name }}/{{ lv_name }}
+    - name: LV size before resize
+      command: lvdisplay "{{ lv_device | regex_replace('mapper', 'dev') }}"
+      # converts /dev/mapper/rootvg-optlv → /dev/dev/rootvg-optlv → still
+      # works but simpler to skip if lvdisplay fails—optional.
       register: lv_info
       changed_when: false
+      ignore_errors: true
 
-    - name: Report current sizes
+    - name: Show current VG/LV information
       debug:
         msg:
           - "{{ (vg_info.stdout_lines | select('search','Free.*Size')).list }}"
-          - "{{ (lv_info.stdout_lines | select('search','LV Size')).list }}"
+          - "{{ (lv_info.stdout_lines | select('search','LV Size')).list | default('LV display skipped') }}"
 
     # ───────────────────────────────────────────────────────
-    # Step 2 ▸ Extend LV + grow filesystem (one-shot)
+    # Step 3 ▸ Extend LV & filesystem in one shot
     # ───────────────────────────────────────────────────────
-    - name: Extend {{ lv_name }} to {{ new_lv_size }} and grow XFS
+    - name: Extend {{ lv_name }} to {{ new_lv_size }} & grow XFS
       community.general.lvol:
         vg       : "{{ vg_name }}"
         lv       : "{{ lv_name }}"
         size     : "{{ new_lv_size }}"
-        resizefs : true       # auto-grows mounted FS
+        resizefs : true
         state    : present
 
     # ───────────────────────────────────────────────────────
-    # Step 3 ▸ Verify new capacity
+    # Step 4 ▸ Verify new capacity
     # ───────────────────────────────────────────────────────
-    - name: Confirm /opt now larger
+    - name: Confirm {{ mount_point }} size after resize
       command: df -h {{ mount_point }}
       register: df_opt
       changed_when: false

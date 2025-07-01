@@ -1,135 +1,68 @@
 ---
 # ─────────────────────────────────────────────────────────────
-# Playbook: resize-disks-aap.yml
-# Purpose : Grow the OS disk partition -> PV -> rootvg, then
-#           (re)create /opt LV and mount it.
-# Target  : AAP node (single-node controller)
+# Playbook : resize-disks-aap.yml
+# Purpose  : Expand the existing /opt logical volume on the AAP
+#            node **without** touching partitions or PVs.
+#            ▸ No growpart ▸ No pvresize
+#            ▸ Single lvol task with resizefs=true
+# ─────────────────────────────────────────────────────────────
+# Assumes  :
+#   • /opt is   /dev/{{ vg_name }}/{{ lv_name }}
+#   • VG has enough free space for {{ new_lv_size }}
+#   • Filesystem on the LV is XFS
 # ─────────────────────────────────────────────────────────────
 
-- name: Resize PV, extend /opt on AAP node
+- name: Resize /opt LV on AAP node
   hosts: aap
   gather_facts: false
   become: true
 
   vars:
-    # ─────────── Connection defaults (CLI can override) ────────────
-    ansible_host:               "{{ aap_ip               | default('10.0.1.12') }}"
-    ansible_user:               "{{ aap_target_user      | default('rheluser') }}"
-    ansible_ssh_private_key_file: "{{ aap_target_ssh_key | default('/home/rheluser/.ssh/ansible-demo-key') }}"
-    ansible_python_interpreter: /usr/bin/python3
-
-    # ─────────── LVM settings ────────────
-    vg_name:        rootvg
-    opt_lv_name:    optlv
-    opt_lv_size:    60g           # ← final size you want for /opt
-    opt_mount_point: /opt
-
-    pv_device:      /dev/sda3     # RHEL cloud-init puts root VG here
-    disk_device:    /dev/sda      # Underlying Azure OS disk
-    disk_partition: 3
+    # ── LVM details ────────────────────────────────────────
+    vg_name       : "rootvg"
+    lv_name       : "optlv"
+    new_lv_size   : "60g"      # ← Adjust as required
+    mount_point   : "/opt"
 
   tasks:
-  # ─────────────────────────────────────────────────────────
-  #  Step -1 ▸ Pre-flight: make sure growpart is available
-  # ─────────────────────────────────────────────────────────
-  - name: Install growpart utility
-    package:
-      name: cloud-utils-growpart
-      state: present
+    # ───────────────────────────────────────────────────────
+    # Step 1 ▸ Show current space (informational)
+    # ───────────────────────────────────────────────────────
+    - name: Debug ▸ VG free space
+      command: vgdisplay {{ vg_name }}
+      register: vg_info
+      changed_when: false
 
-  # ─────────────────────────────────────────────────────────
-  #  Step -1.1 ▸ Expand the PV partition to full disk
-  # ─────────────────────────────────────────────────────────
-  - name: Grow root PV partition to full disk size
-    command: growpart {{ disk_device }} {{ disk_partition }}
-    register: growpart_result
-    changed_when: "'CHANGED' in growpart_result.stderr"
-    failed_when:
-      - growpart_result.rc != 0
-      - "'NOCHANGE' not in growpart_result.stderr"
+    - name: Debug ▸ LV size
+      command: lvdisplay /dev/{{ vg_name }}/{{ lv_name }}
+      register: lv_info
+      changed_when: false
 
-  - name: Debug growpart output
-    debug:
-      var: growpart_result.stderr_lines
-    when: growpart_result.changed
+    - name: Report current sizes
+      debug:
+        msg:
+          - "{{ (vg_info.stdout_lines | select('search','Free.*Size')).list }}"
+          - "{{ (lv_info.stdout_lines | select('search','LV Size')).list }}"
 
-  # ─────────────────────────────────────────────────────────
-  #  Step -1.2 ▸ Resize the physical volume if growpart changed
-  # ─────────────────────────────────────────────────────────
-  - name: Resize PV to use new partition size
-    command: pvresize {{ pv_device }}
-    when: growpart_result.changed
+    # ───────────────────────────────────────────────────────
+    # Step 2 ▸ Extend LV + grow filesystem (one-shot)
+    # ───────────────────────────────────────────────────────
+    - name: Extend {{ lv_name }} to {{ new_lv_size }} and grow XFS
+      community.general.lvol:
+        vg       : "{{ vg_name }}"
+        lv       : "{{ lv_name }}"
+        size     : "{{ new_lv_size }}"
+        resizefs : true       # auto-grows mounted FS
+        state    : present
 
-  # ─────────────────────────────────────────────────────────
-  #  Step 0 ▸ Show rootvg capacity after PV resize (diagnostic)
-  # ─────────────────────────────────────────────────────────
-  - name: Debug rootvg free space
-    command: vgdisplay {{ vg_name }}
-    register: vgdisplay_output
-    changed_when: false
+    # ───────────────────────────────────────────────────────
+    # Step 3 ▸ Verify new capacity
+    # ───────────────────────────────────────────────────────
+    - name: Confirm /opt now larger
+      command: df -h {{ mount_point }}
+      register: df_opt
+      changed_when: false
 
-  - name: Print rootvg space
-    debug:
-      var: vgdisplay_output.stdout_lines
-
-  # ─────────────────────────────────────────────────────────
-  #  Step 1 ▸ Create / extend logical volume for /opt
-  # ─────────────────────────────────────────────────────────
-  - name: Create / extend LV {{ opt_lv_name }}
-    lvol:
-      vg:   "{{ vg_name }}"
-      lv:   "{{ opt_lv_name }}"
-      size: "{{ opt_lv_size }}"
-      state: present
-    register: create_lv_result
-
-  # ─────────────────────────────────────────────────────────
-  #  Step 2 ▸ Verify LV exists
-  # ─────────────────────────────────────────────────────────
-  - name: Verify {{ opt_lv_name }} exists
-    command: lvdisplay /dev/{{ vg_name }}/{{ opt_lv_name }}
-    register: lv_exist_check
-    failed_when: lv_exist_check.rc != 0
-    changed_when: false
-
-  # ─────────────────────────────────────────────────────────
-  #  Step 3 ▸ Ensure filesystem (XFS)
-  # ─────────────────────────────────────────────────────────
-  - name: Create filesystem on {{ opt_lv_name }}
-    filesystem:
-      fstype: xfs
-      dev: /dev/{{ vg_name }}/{{ opt_lv_name }}
-    when: create_lv_result.changed
-
-  # ─────────────────────────────────────────────────────────
-  #  Step 4 ▸ Ensure mount-point and mount LV
-  # ─────────────────────────────────────────────────────────
-  - name: Ensure {{ opt_mount_point }} exists
-    file:
-      path: "{{ opt_mount_point }}"
-      state: directory
-      mode: "0755"
-
-  - name: Mount {{ opt_mount_point }}
-    mount:
-      path: "{{ opt_mount_point }}"
-      src:  /dev/{{ vg_name }}/{{ opt_lv_name }}
-      fstype: xfs
-      opts: defaults
-      state: mounted
-
-  - name: Persist mount in fstab
-    mount:
-      path: "{{ opt_mount_point }}"
-      src:  /dev/{{ vg_name }}/{{ opt_lv_name }}
-      fstype: xfs
-      opts: defaults
-      state: present
-
-  # ─────────────────────────────────────────────────────────
-  #  Step 5 ▸ Verify mount
-  # ─────────────────────────────────────────────────────────
-  - name: Check {{ opt_mount_point }} is a mountpoint
-    command: mountpoint {{ opt_mount_point }}
-    changed_when: false
-...
+    - name: Show updated /opt usage
+      debug:
+        var: df_opt.stdout_lines

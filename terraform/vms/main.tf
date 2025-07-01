@@ -31,6 +31,8 @@ module "aap" {
   resource_group_name  = var.resource_group_name
   admin_username       = var.admin_username
   admin_ssh_public_key = var.admin_ssh_public_key
+  vm_size              = "Standard_D4s_v5"
+  disk_size_gb         = 64
 }
 
 # ───────────────────────────────────

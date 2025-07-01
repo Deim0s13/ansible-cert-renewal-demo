@@ -76,3 +76,12 @@ variable "disk_size_gb" {
   type        = number
   default     = null
 }
+
+# ───────────────────────────────────
+# **NEW** Optional data-disk size
+# ───────────────────────────────────
+variable "data_disk_size_gb" {
+  description = "Size of an additional managed disk (GB). 0 = no data disk"
+  type        = number
+  default     = 0
+}

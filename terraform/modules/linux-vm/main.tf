@@ -62,6 +62,17 @@ resource "azurerm_linux_virtual_machine" "vm" {
     disk_size_gb         = var.disk_size_gb != null ? var.disk_size_gb : null
   }
 
+  dynamic "data_disk" {
+    for_each = var.data_disk_size_gb > 0 ? [1] : []
+
+    content {
+      lun                  = 0
+      caching              = "ReadOnly"
+      storage_account_type = "Standard_LRS"
+      disk_size_gb         = var.data_disk_size_gb
+    }
+  }
+
   source_image_reference {
     publisher = "RedHat"
     offer     = "RHEL"

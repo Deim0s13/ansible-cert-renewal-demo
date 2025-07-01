@@ -1,189 +1,152 @@
-# Ansible-Based Certificate Renewal Automation Demo
+# Ansible‑Based Certificate Renewal Automation Demo
 
 ## Project Overview
 
 ### Purpose
 
-This project demonstrates a **fully automated, self-healing certificate renewal solution** using:
+This repo demonstrates a **fully automated, self‑healing certificate‑renewal workflow** built with:
 
-- **Ansible Automation Platform (AAP)**
-- **Event-Driven Ansible (EDA)**
-- **Microsoft PKI (AD CS)**
-- **ServiceNow for ITSM integration**
+* **Ansible Automation Platform (AAP)** ‑ installs automatically during the build
+* **Event‑Driven Ansible (EDA)** for reactive remediation
+* **Microsoft PKI (AD CS)** providing the enterprise CA
+* **ServiceNow** for IT‑service approvals & notifications
 
-Provisioned on **Azure** using a **hybrid automation model**:
-**Terraform & Bash** for infrastructure → **Ansible** for post-provisioning setup.
+The lab is provisioned on **Azure** with a *hybrid* toolset:
+
+* **Terraform + Bash** → builds the cloud infrastructure
+* **Ansible**  → finishes configuration, installs AAP, sets up the PKI pipeline
 
 ---
 
-## Architecture & Components
+## Target Architecture
 
-| Component              | Role / Function                                      |
-|------------------------|------------------------------------------------------|
-| **Jump Host (RHEL)**   | Central control node for Ansible/AAP provisioning    |
-| **AAP Node**           | Hosts Ansible Automation Platform                    |
-| **Windows AD + PKI**   | Acts as Domain Controller and Certificate Authority  |
-| **Windows Web Server** | IIS-based demo site for SSL automation               |
-| **RHEL Web Server**    | Apache/Nginx-based demo for SSL renewal              |
-| **ServiceNow**         | Triggers cert renewal via webhooks / approvals       |
-| **EDA Controller**     | Automates workflows on expiry / alerts               |
+| Component              | Purpose / Notes                                   |
+| ---------------------- | ------------------------------------------------- |
+| **Jump Host (RHEL)**   | Primary Ansible control node & AAP installer host |
+| **AAP Node**           | Runs Ansible Automation Platform (single‑node)    |
+| **Windows AD + PKI**   | Domain Controller & Certificate Authority         |
+| **Windows Web Server** | IIS demo site ‑ consumes auto‑renewed certs       |
+| **RHEL Web Server**    | Apache/Nginx demo site for Linux cert flow        |
+| **ServiceNow**         | ITSM approvals / change management                |
+| **EDA Controller**     | Executes remediation policies on expiry / alerts  |
 
 ---
 
 ## Provisioning Workflow
 
-### Step-by-Step Automation Flow
+### 1  `build-demo.sh`
 
-1. **Run `build-demo.sh`**
-   - Validates Azure subscription
-   - Applies Terraform for foundations (VNet, NSGs, Jump Host)
-   - Applies Terraform for VM layer (AAP, AD, Web Servers)
-   - Decodes secrets from base64
-   - Automatically invokes Ansible for post-provisioning
+1. Validates Azure subscription & SSH prerequisites
+2. Applies **foundations** Terraform (VNet, NSGs, Jump Host)
+3. Applies **VM layer** Terraform (AAP, AD/PKI, Web servers)
+4. Copies the disconnected‑bundle **once** to the Jump Host
+5. Fires **Ansible post‑provisioning** on the Jump Host
 
-2. **Post-Provisioning via Ansible**
-   - Jump Host is configured and updated
-   - AAP installer is uploaded to the Jump Host
-   - Git repo is cloned to the Jump Host for further automation
+### 2  Post‑Provisioning (Ansible)
+
+The `post-provision.yml` playbook (triggered from `build-demo.sh`) now performs **four** modular steps:
+
+| Order | Import Playbook            | Purpose                                     |
+| ----: | -------------------------- | ------------------------------------------- |
+|     0 | `copy-private-key.yml`     | injects control‑node SSH key onto Jump Host |
+|     1 | `configure-jump-host.yml`  | installs Python, Podman, etc.               |
+|     2 | `upload-aap-installer.yml` | copies `aap‑setup‑*.tar.gz` to `/var/tmp`   |
+|     3 | `install-aap.yml`          | **runs AAP installer from the Jump Host**   |
+|     4 | `resize-disks-aap.yml`     | expands & mounts `/opt` LVM on the AAP node |
+
+> 🔄 **No second hop!**  The bundle is **not** copied again—`install‑aap` uses `rsync` over SSH to stream the bundle directly from the Jump Host to the AAP node before running `setup.sh`.
 
 ---
 
-## Directory Structure
+## Repository Layout (trimmed)
 
 ```text
 ansible-cert-renewal-demo/
-├── terraform/
-│   ├── foundations/            # VNet, Subnet, NSGs, Jump Host
-│   ├── vms/                    # AAP, AD/PKI, Web Servers
-│   ├── modules/                # Reusable modules for VMs
-│   └── secrets/                # Encoded admin credentials
-├── downloads/                  # AAP installer bundle
+├── terraform/                   # networking & VM modules
+├── downloads/                   # AAP bundle (ignored by git)
 ├── ansible/
 │   ├── inventory/
-│   │   └── dynamic             # Jump host IP passed in at runtime
+│   │   └── demo-hosts           # static inventory for jump & aap
 │   ├── playbooks/
-│   │   ├── post-provision.yml         # Main post-provision runner
-│   │   ├── configure-jump-host.yml    # Ensures packages and updates
-│   │   ├── upload-aap-installer.yml   # Uploads AAP tarball
-│   │   ├── clone-repo-to-jump.yml     # Clones Git repo
-│   │   └── archived/                  # Legacy playbooks (if any)
+│   │   ├── post-provision.yml
+│   │   ├── upload-aap-installer.yml
+│   │   ├── install-aap.yml
+│   │   └── …
+│   ├── roles/
+│   │   └── aap_install/         # rsync & installer logic
 │   └── ansible.cfg
-├── build-demo.sh              # Full hybrid provisioning script
-├── destroy-demo.sh            # Teardown script
-└── reset-demo.sh              # Terraform state cleaner
+├── build-demo.sh                # one‑command deploy
+└── destroy-demo.sh              # full teardown
 ```
 
 ---
 
-## Key Scripts & Playbooks
+## Key Playbooks & Roles
 
-### `build-demo.sh`
+### `upload-aap-installer.yml`
 
-This is the main orchestration script. It performs the following:
+* Copies the disconnected bundle from **your laptop → Jump Host** with `rsync`.
+* Skips upload if the checksum on the Jump Host matches.
 
-- Validates Azure subscription matches Terraform state
-- Applies the **foundations** layer (network, NSGs, Jump Host)
-- Applies the **VM layer** (AAP, AD/PKI, Web Servers)
-- Automatically calls Ansible to run post-provisioning tasks
+### `install-aap.yml`
 
-Run it like so:
+Runs only on the **Jump Host** and includes the `aap_install` role.
+
+Role highlights:
+
+1. Validates vault secrets (`aap_admin_password`, `aap_pg_password`).
+2. Installs `python3`, `podman`, `tar`, `unzip` on AAP node (via yum module).
+3. `rsync`‑pushes the tarball **directly** to the AAP node.
+4. Unpacks bundle under `/opt` and auto‑discovers the versioned directory.
+5. Generates a single‑node inventory.
+6. Executes `setup.sh`; tail of log is printed for visibility.
+
+Run manually if needed:
 
 ```bash
+ansible-playbook ansible/playbooks/install-aap.yml \
+  -i ansible/inventory/demo-hosts               \
+  --limit jump                                  \
+  --vault-id @prompt
+```
+
+---
+
+## Automation Phase Tracker
+
+| Phase                  | Status | Notes                       |
+| ---------------------- | ------ | --------------------------- |
+| Provision infra (TF)   | ✅ Done | VNet + all VMs              |
+| Upload AAP bundle      | ✅ Done | Single hop to Jump Host     |
+| Install AAP            | ✅ Done | From Jump Host → AAP node   |
+| Configure PKI          | ⏳ Next | AD CS playbooks (coming)    |
+| Cert renewal workflows | ⏳ Next | IIS / Apache bindings       |
+| ServiceNow integration | ⏳ Next | Webhooks & approvals        |
+| EDA self‑healing       | ⏳ Next | Fires on cert‑expiry events |
+
+---
+
+## Quick Commands
+
+```bash
+# Kick off EVERYTHING (Terraform + Ansible)
 ./build-demo.sh
-```
 
-### `post-provision.yml`
-
-This Ansible playbook is triggered by the build-demo.sh script. It:
-
-- Connects to the Jump Host
-- Runs a sequence of modular Ansible playbooks:
-
-```yaml
-- name: Post-Provisioning Automation on Jump Host
-  hosts: all
-  gather_facts: false
-
-  vars:
-    remote_installer_path: /var/tmp/Ansible_Automation_Platform_Setup.tar.gz
-    target_dir: "{{ ansible_user_dir }}/{{ repo_url | basename | regex_replace('.git$', '') }}"
-
-  tasks:
-    - name: Configure jump host
-      import_playbook: configure-jump-host.yml
-
-    - name: Upload AAP installer
-      import_playbook: upload-aap-installer.yml
-
-    - name: Clone Git repo
-      import_playbook: clone-repo-to-jump.yml
-```
-
-You can also run it manually:
-
-```bash
-ansible-playbook ansible/playbooks/post-provision.yml \
-  --private-key ~/.ssh/ansible-demo-key \
-  -i "<JUMP_HOST_IP>," \
-  -u rheluser \
-  -e "installer_path=downloads/AAP.tar.gz repo_url=https://github.com/your-org/your-repo.git"
-```
-
-### `destroy-dem.sh`
-
-Tears down the environment in two stages:
-
-1. **VM layer** (AAP, AD, Web Servers)
-2. **Foundations layer** (NSGs, VNet, Jump Host)
-
-Optionally cleans Terraform state files if --cleanup is passed.
-
-```bash
+# Tear it all down
 ./destroy-demo.sh --cleanup
-```
 
-### `reset-demo.sh`
-
-Deletes all Terraform state and `.terraform` directories locally.
-Use this when switching Azure subscriptions or force-cleaning your environment.
-
-```bash
-./reset-demo.sh
+# Re‑run only post‑provision on an existing lab
+ansible-playbook ansible/playbooks/post-provision.yml \
+  -i ansible/inventory/demo-hosts --limit jump
 ```
 
 ---
 
-## Git & State Hygiene
+## Good‑to‑Know
 
-✅ **Subscription-agnostic provisioning**
-✅ **Reset scripts** for clean rebuilds
-✅ **Secrets injected dynamically** — not stored in plaintext
-✅ **Inventory separation** for provisioning vs. demo
-✅ **Terraform + Ansible fully integrated**
+* **Subscription‑agnostic** – Azure IDs are param‑driven & cleaned with `reset-demo.sh`.
+* **Secrets** stay in `ansible-vault`; never committed unencrypted.
+* **Idempotent** – Safe to re‑run any playbook; changed‑when guards prevent churn.
+* **Extensible** – Swap the CA or ITSM integrations by editing group vars & roles only.
 
----
-
-## Ansible Automation Phase (Current State)
-
-| Phase              | Action                                                  |
-|--------------------|----------------------------------------------------------|
-| ✅ Provision Infra  | Terraform builds networking + VMs                        |
-| ✅ Install Ansible  | Jump Host installs Ansible automatically                 |
-| ✅ Upload Installer | AAP bundle uploaded to Jump Host                         |
-| ✅ Git Clone        | Git repo cloned to Jump Host                             |
-| ⏳ Install AAP      | AAP installed on dedicated node via playbook             |
-| ⏳ Configure PKI    | Domain and CA services installed via Ansible             |
-| ⏳ Setup Cert Flow  | Cert issuance, renewal, and binding via playbooks        |
-| ⏳ ServiceNow Hook  | Cert triggers handled via ServiceNow and Webhooks        |
-| ⏳ EDA Integration  | Self-healing workflows run on alert or expiry detection  |
-
----
-
-## Final Notes
-
-- Designed for **short-lived Azure subscriptions**
-- Modular, idempotent, and easily testable
-- Replace `git_repo_url` in playbook variables to point to your own repo
-- Use `--start-at-task` or `--tags` to target specific phases
-
-> 💡 Fully open source and designed for re-use and extension.
+> 💡 PRs welcome! Feel free to fork and adapt to your own demo needs.

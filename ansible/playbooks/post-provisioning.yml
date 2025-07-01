@@ -52,7 +52,24 @@
 # Step 4 – Trigger AAP Disk Resize (run from jump host)
 # ─────────────────────────────────────────────────────
 - name: Step 4 – Resize AAP Disk from Jump Host
-  import_playbook: resize-disks-aap.yml
+  hosts: jump
+  gather_facts: false
   vars:
-    jump_host_inventory_path: "{{ jump_host_inventory_path }}"
     ansible_user_dir: /home/rheluser
+    jump_host_inventory_path: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/inventory/demo-hosts"
+
+  tasks:
+    - name: Run resize-disks-aap.yml via the jump-host’s own Ansible
+      ansible.builtin.shell: |
+        export ANSIBLE_CONFIG="{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/ansible.cfg"
+        {{ ansible_user_dir }}/.local/bin/ansible-playbook \
+          -i "{{ jump_host_inventory_path }}" \
+          "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks/resize-disks-aap.yml"
+      args:
+        chdir: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/playbooks"
+      register: resize_log
+      changed_when: false
+
+    - name: Show nested playbook output
+      ansible.builtin.debug:
+        var: resize_log.stdout_lines

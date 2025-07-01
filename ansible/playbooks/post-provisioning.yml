@@ -15,48 +15,46 @@
     jump_host_inventory_path: "{{ ansible_user_dir }}/ansible-cert-renewal-demo/ansible/inventory/demo-hosts"
   tasks: []
 
-# ─────────────────────────────────────────────────────
-# Step 0 – SSH key and known_hosts management on Jump Host
-# ─────────────────────────────────────────────────────
-- name: Step 0 – Inject SSH Private Key and Manage Known Hosts on Jump Host
-  import_playbook: copy-private-key.yml
-  vars:
-    private_key_path: "{{ private_key_path }}"
-    aap_host_ip: "10.0.1.12"
 
 # ─────────────────────────────────────────────────────
-# Step 1 – Configure jump host (packages, ruamel.yaml, etc.)
+# Step 0 – Configure jump host (packages, ruamel.yaml, etc.)
 # ─────────────────────────────────────────────────────
-- name: Step 1 – Configure the Jump Host
+- name: Step 0 – Configure the Jump Host
   import_playbook: configure-jump-host.yml
 
+
 # ─────────────────────────────────────────────────────
-# Step 2 – Upload AAP bundle to jump host
+# Step 1 – Upload AAP bundle to jump host
 # ─────────────────────────────────────────────────────
-- name: Step 2 – Upload AAP Disconnected Installer
+- name: Step 1 – Upload AAP Disconnected Installer
   import_playbook: upload-aap-installer.yml
 
+
 # ─────────────────────────────────────────────────────
-# Step 3 – Clone project repo to jump host
+# Step 2 – Clone project repo to jump host
 # ─────────────────────────────────────────────────────
-- name: Step 3 – Clone Git Repository
+- name: Step 2 – Clone Git Repository
   import_playbook: clone-repo-to-jump.yml
 
-# ─────────────────────────────────────────────────────
-# Step 4 – Bootstrap SSH connectivity from jump host → aap-host
-# ─────────────────────────────────────────────────────
-- name: Step 4 – Bootstrap SSH Connectivity
-  import_playbook: bootstrap-ssh.yml
-  vars:
-    aap_host_ip: "10.0.1.12"
-    aap_target_user: "rheluser"
-    aap_target_ssh_key: "{{ private_key_path }}"
-    jump_host_inventory_path: "{{ jump_host_inventory_path }}"
 
 # ─────────────────────────────────────────────────────
-# Step 5 – Trigger AAP Disk Resize (run from jump host)
+# Step 3 – Bootstrap SSH connectivity jump → AAP host
+#           (includes key copy, known_hosts, test)
 # ─────────────────────────────────────────────────────
-- name: Step 5 – Resize AAP Disk from Jump Host
+- name: Step 3 – Bootstrap SSH Connectivity
+  import_playbook: bootstrap-ssh.yml
+  vars:
+    aap_host_ip:        "10.0.1.12"
+    aap_target_user:    "rheluser"
+    aap_target_ssh_key: "{{ private_key_path }}"
+    aap_port:           22                       # change if non-default
+    # the merged bootstrap playbook handles everything else
+
+
+# ─────────────────────────────────────────────────────
+# Step 4 – Trigger AAP Disk Resize (run from jump host)
+# ─────────────────────────────────────────────────────
+- name: Step 4 – Resize AAP Disk from Jump Host
   import_playbook: resize-disks-aap.yml
   vars:
     jump_host_inventory_path: "{{ jump_host_inventory_path }}"

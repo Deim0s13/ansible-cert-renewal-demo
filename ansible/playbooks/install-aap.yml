@@ -1,13 +1,14 @@
 ---
 # ─────────────────────────────────────────────────────────────
-# Playbook: install-aap.yml
-# Purpose : Copy bundle from jump → AAP VM, unpack, run setup.sh
+# Playbook : install-aap.yml           (run FROM the jump-host)
+# Purpose  : Unpack the disconnected bundle on the jump-host
+#            and execute setup.sh against the target AAP node.
 # ─────────────────────────────────────────────────────────────
 
-- name: Install Ansible Automation Platform
-  hosts: aap
+- name: Install Ansible Automation Platform FROM jump-host
+  hosts: jump
   gather_facts: false
-  become: true
+  become: true           # needed to write under /opt
 
   roles:
-    - aap_install
+    - run_aap_installer_from_jump

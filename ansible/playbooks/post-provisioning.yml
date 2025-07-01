@@ -29,13 +29,11 @@
 - name: Step 1 – Upload AAP Disconnected Installer
   import_playbook: upload-aap-installer.yml
 
-
 # ─────────────────────────────────────────────────────
 # Step 2 – Clone project repo to jump host
 # ─────────────────────────────────────────────────────
 - name: Step 2 – Clone Git Repository
   import_playbook: clone-repo-to-jump.yml
-
 
 # ─────────────────────────────────────────────────────
 # Step 3 – Bootstrap SSH connectivity jump → AAP host
@@ -44,12 +42,11 @@
 - name: Step 3 – Bootstrap SSH Connectivity
   import_playbook: bootstrap-ssh.yml
   vars:
-    aap_host_ip:        "10.0.1.12"
-    aap_target_user:    "rheluser"
+    aap_host_ip: "10.0.1.12"
+    aap_target_user: "rheluser"
     aap_target_ssh_key: "{{ private_key_path }}"
-    aap_port:           22                       # change if non-default
+    aap_port: 22                       # change if non-default
     # the merged bootstrap playbook handles everything else
-
 
 # ─────────────────────────────────────────────────────
 # Step 4 – Trigger AAP Disk Resize (run from jump host)

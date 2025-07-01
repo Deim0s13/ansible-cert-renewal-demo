@@ -21,7 +21,7 @@
     # ─────────── LVM settings ────────────
     vg_name:        rootvg
     opt_lv_name:    optlv
-    opt_lv_size:    70g           # ← final size you want for /opt
+    opt_lv_size:    60g           # ← final size you want for /opt
     opt_mount_point: /opt
 
     pv_device:      /dev/sda3     # RHEL cloud-init puts root VG here

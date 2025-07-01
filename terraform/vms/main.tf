@@ -32,7 +32,7 @@ module "aap" {
   admin_username       = var.admin_username
   admin_ssh_public_key = var.admin_ssh_public_key
   vm_size              = "Standard_D4s_v5"
-  disk_size_gb         = 64
+  disk_size_gb         = 128
 }
 
 # ───────────────────────────────────

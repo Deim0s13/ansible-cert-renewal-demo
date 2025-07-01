@@ -1,0 +1,116 @@
+---
+# ─────────────────────────────────────────────────────────────
+# Role  : run_aap_installer_from_jump
+# Hosts : jump
+# Purpose: unpack bundle and run setup.sh locally (inventory
+#          points at the remote aap-host)
+# ─────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────
+# Step 0 ▸ Sanity – vault vars present
+# ─────────────────────────────────────────────────────────────
+- name: Assert required passwords are defined
+  assert:
+    that:
+      - aap_admin_password is string and aap_admin_password | length > 0
+      - aap_pg_password    is string and aap_pg_password    | length > 0
+    fail_msg: >
+      Either aap_admin_password or aap_pg_password is missing.
+      Check group_vars/aap/vault.yml (or your CI secrets).
+
+# ─────────────────────────────────────────────────────────────
+# Step 1 ▸ OS prerequisites on jump-host
+# ─────────────────────────────────────────────────────────────
+- name: Ensure prerequisite RPMs are present on jump-host
+  package:
+    name: [python3, tar, unzip, podman] # podman needed by installer
+    state: present
+
+- name: Ensure {{ aap_extract_root }} exists
+  file:
+    path: "{{ aap_extract_root }}"
+    state: directory
+    mode: "0755"
+
+# ─────────────────────────────────────────────────────────────
+# Step 2 ▸ Extract bundle (idempotent)
+# ─────────────────────────────────────────────────────────────
+- name: Extract bundle under {{ aap_extract_root }}
+  unarchive:
+    src: "{{ aap_bundle_path }}"
+    dest: "{{ aap_extract_root }}"
+    remote_src: true
+    creates: "{{ aap_extract_root }}/ansible-automation-platform-setup"
+  register: unarchive_result
+
+# ─────────────────────────────────────────────────────────────
+# Step 3 ▸ Locate setup.sh (version-agnostic)
+# ─────────────────────────────────────────────────────────────
+- name: Locate setup.sh directory
+  find:
+    paths: "{{ aap_extract_root }}"
+    patterns: setup.sh
+    recurse: true
+    file_type: file
+  register: setup_search
+  changed_when: false
+
+- name: Fail if setup.sh not found
+  fail:
+    msg: "setup.sh missing – extraction failed?"
+  when: setup_search.matched == 0
+
+- name: Set fact aap_setup_dir
+  set_fact:
+    aap_setup_dir: "{{ setup_search.files[0].path | dirname }}"
+
+# ─────────────────────────────────────────────────────────────
+# Step 4 ▸ Generate single-node inventory (points to aap-host)
+# ─────────────────────────────────────────────────────────────
+- name: Build inventory for installer
+  copy:
+    dest: "{{ aap_setup_dir }}/inventory"
+    mode: "0600"
+    content: |
+      [automationcontroller]
+      {{ hostvars['aap-host'].ansible_host | default('10.0.1.12') }}
+
+      [all:vars]
+      admin_password='{{ aap_admin_password }}'
+      pg_host=''
+      pg_port='5432'
+      pg_database='awx'
+      pg_username='awx'
+      pg_password='{{ aap_pg_password }}'
+      registry_url='{{ aap_registry_url }}'
+      redis_mode=standalone
+
+# ─────────────────────────────────────────────────────────────
+# Step 5 ▸ Run the installer (async, colour forced)
+# ─────────────────────────────────────────────────────────────
+- name: Execute AAP installer
+  command: "{{ aap_setup_dir }}/setup.sh"
+  args:
+    chdir: "{{ aap_setup_dir }}"
+  async: 1800 # 30 min just in case
+  poll: 0
+  register: installer_job
+  environment:
+    ANSIBLE_FORCE_COLOR: "true"
+
+- name: Wait for installer to finish
+  async_status:
+    jid: "{{ installer_job.ansible_job_id }}"
+  register: installer_result
+  until: installer_result.finished
+  retries: 200 # ~30 min total
+  delay: 10
+
+- name: Show last 20 lines of setup.log
+  shell: "tail -n 20 {{ aap_setup_dir }}/setup.log"
+  register: setup_tail
+  changed_when: false
+
+- name: Display installer summary
+  debug:
+    msg: "{{ setup_tail.stdout_lines }}"

@@ -1,0 +1,48 @@
+# ─────────────────────────────────────────────────────────────
+# Playbook: setup-ssh-access.yml
+# Purpose: Copy SSH private/public key pair from Jump Host to Linux VMs
+# ─────────────────────────────────────────────────────────────
+
+- name: Deploy SSH Keys to Linux Hosts
+  hosts: linux:!jump  # Exclude jump itself
+  become: true
+  vars:
+    ssh_key_path: "/home/rheluser/.ssh/ansible-demo-key"
+    ssh_pub_key_path: "/home/rheluser/.ssh/ansible-demo-key.pub"
+    ssh_user: "rheluser"
+
+  tasks:
+
+    # ─────────────────────────────────────────────────────────
+    # Step 1: Ensure .ssh directory exists for the target user
+    # ─────────────────────────────────────────────────────────
+    - name: Ensure .ssh directory exists
+      file:
+        path: "/home/{{ ssh_user }}/.ssh"
+        state: directory
+        owner: "{{ ssh_user }}"
+        group: "{{ ssh_user }}"
+        mode: '0700'
+
+    # ─────────────────────────────────────────────────────────
+    # Step 2: Copy the public key to authorized_keys
+    # ─────────────────────────────────────────────────────────
+    - name: Deploy SSH public key
+      copy:
+        src: "{{ ssh_pub_key_path }}"
+        dest: "/home/{{ ssh_user }}/.ssh/authorized_keys"
+        owner: "{{ ssh_user }}"
+        group: "{{ ssh_user }}"
+        mode: '0600'
+
+    # ─────────────────────────────────────────────────────────
+    # Step 3: (Optional) Copy private key if needed for nested automation
+    # ─────────────────────────────────────────────────────────
+    - name: Optionally deploy SSH private key (if needed for nested automation)
+      copy:
+        src: "{{ ssh_key_path }}"
+        dest: "/home/{{ ssh_user }}/.ssh/ansible-demo-key"
+        owner: "{{ ssh_user }}"
+        group: "{{ ssh_user }}"
+        mode: '0600'
+      when: ssh_key_path is defined

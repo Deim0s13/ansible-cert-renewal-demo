@@ -7,33 +7,35 @@
 # RHEL Web Server (Apache/Nginx demo site)
 # ───────────────────────────────────
 module "rhel_web" {
-  source               = "../modules/linux-vm"
-  name                 = "rhel-web"
-  ip_address           = "10.0.1.11"
-  subnet_id            = var.subnet_id
-  nsg_id               = var.linux_nsg_id
-  location             = var.location
-  resource_group_name  = var.resource_group_name
-  admin_username       = var.admin_username
-  admin_ssh_public_key = var.admin_ssh_public_key
+  source                = "../modules/linux-vm"
+  name                  = "rhel-web"
+  ip_address            = "10.0.1.11"
+  subnet_id             = var.subnet_id
+  nsg_id                = var.linux_nsg_id
+  location              = var.location
+  resource_group_name   = var.resource_group_name
+  admin_username        = var.admin_username
+  admin_ssh_public_key  = var.admin_ssh_public_key
+  template_context_path = path.module
 }
 
 # ───────────────────────────────────
 # Ansible Automation Platform Controller
 # ───────────────────────────────────
 module "aap" {
-  source               = "../modules/linux-vm"
-  name                 = "aap"
-  ip_address           = "10.0.1.12"
-  subnet_id            = var.subnet_id
-  nsg_id               = var.linux_nsg_id
-  location             = var.location
-  resource_group_name  = var.resource_group_name
-  admin_username       = var.admin_username
-  admin_ssh_public_key = var.admin_ssh_public_key
-  vm_size              = "Standard_D4s_v5"
-  disk_size_gb         = 128
-  cloud_init_file_path = "${path.module}/aap-cloud-init.tftpl"
+  source                = "../modules/linux-vm"
+  name                  = "aap"
+  ip_address            = "10.0.1.12"
+  subnet_id             = var.subnet_id
+  nsg_id                = var.linux_nsg_id
+  location              = var.location
+  resource_group_name   = var.resource_group_name
+  admin_username        = var.admin_username
+  admin_ssh_public_key  = var.admin_ssh_public_key
+  vm_size               = "Standard_D4s_v5"
+  disk_size_gb          = 128
+  cloud_init_file_path  = "${path.module}/aap-cloud-init.tftpl"
+  template_context_path = path.module
 }
 
 # ───────────────────────────────────

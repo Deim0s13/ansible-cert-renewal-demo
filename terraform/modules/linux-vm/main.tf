@@ -70,7 +70,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
     # This ensures a simpler partition table we can then manage with cloud-init.
     # You might need to check Azure Marketplace for the exact SKU name for RHEL 9 standard.
     # Common ones are "9-gen2" or similar.
-    sku     = "9-gen2" # Example: Check Azure Marketplace for exact RHEL 9 SKU
+    sku     = "96-gen2" # Example: Check Azure Marketplace for exact RHEL 9 SKU
     version = "latest"
   }
 

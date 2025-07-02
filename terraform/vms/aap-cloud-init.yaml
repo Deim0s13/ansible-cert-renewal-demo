@@ -1,19 +1,14 @@
-# terraform/modules/vms/aap-cloud-init.yaml
+#cloud-config  # <--- ADD THIS LINE AS THE VERY FIRST LINE, NO BLANK LINES ABOVE IT!
 # Cloud-init configuration for AAP VM disk setup
 
 packages:
   - lvm2
   - xfsprogs
+  # sfdisk comes with util-linux, usually pre-installed.
 
 runcmd:
   # IMPORTANT: This block is destructive and re-partitions /dev/sda.
-  # Ensure you are OK with wiping the existing data on these partitions.
-  # This sequence deletes existing sda3 and sda4 (if they exist) and
-  # creates a new sda3 spanning the remaining disk for LVM.
 
-  # We'll use sfdisk for robust scripting of partitioning.
-  # First, clear any existing LVM configuration that might cling to sda4/sda3.
-  # This is a bit aggressive but ensures a clean slate.
   - sudo vgchange -an rootvg || true # Deactivate rootvg if it's active
   - sudo pvremove -y /dev/sda4 || true # Remove old PV from sda4 if it exists
   - sudo pvremove -y /dev/sda3 || true # Remove old PV from sda3 if it exists
@@ -21,11 +16,13 @@ runcmd:
   # Define the new partition layout for /dev/sda
   # sda1 (EFI) and sda2 (boot) are left as-is.
   # sda3 will be the new LVM partition spanning the rest of the disk.
-  # ***VERIFY THESE START SECTORS AND SIZES AGAINST YOUR VM'S FDISK -L OUTPUT***
+  # ***VERIFY THESE START SECTORS AND SIZES AGAINST YOUR VM'S FDISK -L OUTPUT FOR PRECISION***
   - |
     (
     echo label: gpt # Use GPT partition table for modern VMs and large disks
     echo unit: sectors
+    # These values (start, size, type GUID) are for a typical RHEL 9 Gen2 layout on 128GB disk.
+    # VERIFY THESE EXACTLY from 'sudo fdisk -l /dev/sda' on a fresh VM from your chosen base image.
     echo /dev/sda1 : start=2048, size=1048576, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B # EFI System partition (512MB)
     echo /dev/sda2 : start=1050624, size=2097152, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4 # Linux filesystem (1GB for /boot)
     echo /dev/sda3 : start=3147776, type=E6D6D379-F1EE-455F-B4D3-BEA92B6002A2 # Linux LVM (fills rest of disk)
@@ -34,26 +31,18 @@ runcmd:
   # Inform kernel about partition table changes
   - sudo partprobe /dev/sda
 
-  # Ensure PV and VG are correctly set up and expanded
+  # 2. Create Physical Volume (PV) on the new sda3
   - sudo pvcreate /dev/sda3
+
+  # 3. Create or extend rootvg to use the new PV
   - |
-    # Check if rootvg exists. If it does, extend it. If not, create it.
     if sudo vgdisplay rootvg &>/dev/null; then
-      # VG exists, remove old PVs if any (might not be necessary but safer)
-      # WARNING: Only do this if you know rootvg only spanned sda4.
-      # If rootvg has other PVs on other disks, this could be bad.
-      # Given your lsblk, rootvg seems only on sda4.
-      # This step should be handled by the fdisk which destroys sda4.
-      # Let's focus on adding the new sda3.
       sudo vgextend rootvg /dev/sda3
     else
       sudo vgcreate rootvg /dev/sda3
     fi
 
-  # Create/Resize Logical Volumes. These will be created if they don't exist,
-  # or extended if they are smaller than the target size.
-  # Ensure the target sizes are appropriate and fit within your 128GB disk.
-  # Total LVs below will be 119GB.
+  # 4. Create/Resize Logical Volumes. These will be created if they don't exist,
   - sudo lvcreate -L 20G -n rootlv rootvg || sudo lvextend -L 20G /dev/mapper/rootvg-rootlv && sudo xfs_growfs /dev/mapper/rootvg-rootlv
   - sudo lvcreate -L 20G -n usrlv rootvg || sudo lvextend -L 20G /dev/mapper/rootvg-usrlv && sudo xfs_growfs /dev/mapper/rootvg-usrlv
   - sudo lvcreate -L 60G -n optlv rootvg || sudo lvextend -L 60G /dev/mapper/rootvg-optlv && sudo xfs_growfs /dev/mapper/rootvg-optlv
@@ -61,12 +50,7 @@ runcmd:
   - sudo lvcreate -L 2G -n homelv rootvg || sudo lvextend -L 2G /dev/mapper/rootvg-homelv && sudo xfs_growfs /dev/mapper/rootvg-homelv
   - sudo lvcreate -L 2G -n tmplv rootvg || sudo lvextend -L 2G /dev/mapper/rootvg-tmplv && sudo xfs_growfs /dev/mapper/rootvg-tmplv
 
-  # Format Filesystems (only for newly created LVs)
-  # NOTE: The lvcreate/lvextend with '&& sudo xfs_growfs' handles growing,
-  # but mkfs is needed if it's a *new* LV.
-  # The 'lvol' module in Ansible does mkfs/resizefs, but here we are in raw cloud-init.
-  # Re-running mkfs on an *already formatted* LV will destroy data.
-  # Given this is first boot and we nuked old partitions, these mkfs are safe.
+  # 5. Format Filesystems (only for newly created LVs)
   - sudo mkfs.xfs /dev/mapper/rootvg-rootlv
   - sudo mkfs.xfs /dev/mapper/rootvg-usrlv
   - sudo mkfs.xfs /dev/mapper/rootvg-optlv
@@ -74,37 +58,45 @@ runcmd:
   - sudo mkfs.xfs /dev/mapper/rootvg-homelv
   - sudo mkfs.xfs /dev/mapper/rootvg-tmplv
 
-  # Create mount points
+  # 6. Create mount points
   - sudo mkdir -p /opt /usr /var /home /tmp
 
-  # Mount Filesystems (replace existing mounts)
-  # It's safer to unmount first if they are on old LVs, but cloud-init often
-  # handles this by having a minimal root and then remounting.
-  # For a clean slate after fdisk, these mounts should work.
+  # 7. Mount Filesystems (re-mounts as cloud-init proceeds)
   - sudo mount /dev/mapper/rootvg-rootlv /
   - sudo mount /dev/mapper/rootvg-usrlv /usr
   - sudo mount /dev/mapper/rootvg-optlv /opt
   - sudo mount /dev/mapper/rootvg-varlv /var
   - sudo mount /dev/mapper/rootvg-homelv /home
   - sudo mount /dev/mapper/rootvg-tmplv /tmp
-  # Ensure /boot/efi and /boot are remounted correctly if they were affected by fdisk
+  # Ensure /boot/efi and /boot are remounted correctly
   - sudo mount /dev/sda1 /boot/efi
   - sudo mount /dev/sda2 /boot
 
-  # Update /etc/fstab for persistence
-  # Clear existing LVM-related entries if present, then add new ones
-  - sudo sed -i '/rootvg-/d' /etc/fstab # Remove lines containing rootvg-
+  # 8. Update /etc/fstab for persistence
+  - sudo cp /etc/fstab /etc/fstab.bak_cloudinit
+  # Remove lines for LVM-managed filesystems to replace them with the new, correct ones
+  - sudo sed -i '/rootvg-/d' /etc/fstab
+  - sudo sed -i '\% /usr %d' /etc/fstab
+  - sudo sed -i '\% /var %d' /etc/fstab
+  - sudo sed -i '\% /home %d' /etc/fstab
+  - sudo sed -i '\% /tmp %d' /etc/fstab
+  - sudo sed -i '\% /opt %d' /etc/fstab
+
+  # Append new LVM entries to fstab
   - echo "/dev/mapper/rootvg-rootlv / xfs defaults 0 0" | sudo tee -a /etc/fstab
   - echo "/dev/mapper/rootvg-usrlv /usr xfs defaults 0 0" | sudo tee -a /etc/fstab
   - echo "/dev/mapper/rootvg-optlv /opt xfs defaults 0 0" | sudo tee -a /etc/fstab
   - echo "/dev/mapper/rootvg-varlv /var xfs defaults 0 0" | sudo tee -a /etc/fstab
   - echo "/dev/mapper/rootvg-homelv /home xfs defaults 0 0" | sudo tee -a /etc/fstab
   - echo "/dev/mapper/rootvg-tmplv /tmp xfs defaults 0 0" | sudo tee -a /etc/fstab
-  # Ensure sda1 and sda2 fstab entries are present (they usually are by default image)
-  - echo "/dev/sda1 /boot/efi efivarfs defaults 0 0" | sudo tee -a /etc/fstab # Adjust fstype if not efivarfs
-  - echo "/dev/sda2 /boot xfs defaults 0 0" | sudo tee -a /etc/fstab # Adjust fstype if not xfs
+  # Ensure sda1 and sda2 fstab entries are present (these are critical for boot)
+  - echo "/dev/sda1 /boot/efi efivarfs defaults 0 0" | sudo tee -a /etc/fstab
+  - echo "/dev/sda2 /boot xfs defaults 0 0" | sudo tee -a /etc/fstab
 
-  # Final verification (optional, but good for debugging cloud-init logs)
+  # Attempt to remount all from fstab to verify.
+  - sudo mount -a
+
+  # Final verification steps for logs
   - sudo lsblk
   - sudo df -h
 

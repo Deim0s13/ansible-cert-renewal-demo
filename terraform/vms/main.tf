@@ -33,7 +33,7 @@ module "aap" {
   admin_ssh_public_key = var.admin_ssh_public_key
   vm_size              = "Standard_D4s_v5"
   disk_size_gb         = 128
-  cloud_init_file_path = "${path.module}/aap-cloud-init.yaml"
+  cloud_init_file_path = "${path.module}/aap-cloud-init.tftpl"
 }
 
 # ───────────────────────────────────

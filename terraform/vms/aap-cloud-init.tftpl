@@ -1,4 +1,4 @@
-# ansible-cert-renewal-demo/terraform/modules/vms/aap-cloud-init.tftpl
+# ansible-cert-renewal-demo/terraform/vms/aap-cloud-init.tftpl
 # This is a Terraform template file for Cloud-init
 MIME-Version: 1.0
 Content-Type: multipart/mixed; boundary="MIMEBOUNDARY"
@@ -7,5 +7,5 @@ Content-Type: multipart/mixed; boundary="MIMEBOUNDARY"
 Content-Type: text/cloud-config; charset="utf-8"
 Content-Transfer-Encoding: base64
 
-${base64encode(file("${module_path}/aap-cloud-init.yaml"))} # <--- THIS LINE IS THE FIX
+${base64encode(file("${module_path}/aap-cloud-init.yaml"))}
 --MIMEBOUNDARY--

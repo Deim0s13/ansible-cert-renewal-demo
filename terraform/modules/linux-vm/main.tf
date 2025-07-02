@@ -59,23 +59,16 @@ resource "azurerm_linux_virtual_machine" "vm" {
     name                 = "${var.name}-osdisk"
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
-    # Keep disk_size_gb. Terraform will ensure Azure allocates this size.
-    disk_size_gb = var.disk_size_gb != null ? var.disk_size_gb : null
+    disk_size_gb         = var.disk_size_gb != null ? var.disk_size_gb : null
   }
 
   source_image_reference {
     publisher = "RedHat"
     offer     = "RHEL"
-    # CHANGE: Use a standard RHEL SKU, not the LVM-preconfigured one.
-    # This ensures a simpler partition table we can then manage with cloud-init.
-    # You might need to check Azure Marketplace for the exact SKU name for RHEL 9 standard.
-    # Common ones are "9-gen2" or similar.
-    sku     = "96-gen2" # Example: Check Azure Marketplace for exact RHEL 9 SKU
-    version = "latest"
+    sku       = "96-gen2"
+    version   = "latest"
   }
 
-  # CHANGE: Apply custom_data to all VMs that specify a cloud_init_file_path.
-  # This makes it flexible for any VM, including 'aap'.
   custom_data = var.cloud_init_file_path != null ? filebase64(var.cloud_init_file_path) : null
 
   tags = {

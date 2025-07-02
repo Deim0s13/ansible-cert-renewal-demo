@@ -1,0 +1,11 @@
+# terraform/modules/vms/aap-cloud-init.tftpl
+# This is a Terraform template file for Cloud-init
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="BOUNDARY"
+
+--BOUNDARY
+Content-Type: text/cloud-config; charset="utf-8"
+Content-Transfer-Encoding: base64
+
+${base64encode(file("${path.module}/aap-cloud-init.yaml"))}
+--BOUNDARY--

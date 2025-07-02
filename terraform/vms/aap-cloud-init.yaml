@@ -6,24 +6,33 @@ packages:
   - xfsprogs
 
 runcmd:
-  # IMPORTANT: These fdisk commands are destructive and re-partition /dev/sda.
+  # IMPORTANT: This block is destructive and re-partitions /dev/sda.
   # Ensure you are OK with wiping the existing data on these partitions.
-  # This sequence deletes sda3 and sda4, then creates a new sda3 spanning the remaining disk.
-  - echo "d" | sudo fdisk /dev/sda # Delete a partition (will prompt for number)
-  - echo "4" | sudo fdisk /dev/sda # Delete sda4
-  - echo "d" | sudo fdisk /dev/sda # Delete another partition
-  - echo "3" | sudo fdisk /dev/sda # Delete sda3
-  # Create a new partition 3 (primary) that spans the rest of the disk
-  - echo "n" | sudo fdisk /dev/sda
-  - echo "p" | sudo fdisk /dev/sda
-  - echo "3" | sudo fdisk /dev/sda # Partition number 3
-  - echo "" | sudo fdisk /dev/sda # Default first sector (after sda2)
-  - echo "" | sudo fdisk /dev/sda # Default last sector (to end of disk)
-  - echo "t" | sudo fdisk /dev/sda # Change partition type
-  - echo "3" | sudo fdisk /dev/sda # Select new sda3
-  - echo "8e" | sudo fdisk /dev/sda # Set type to Linux LVM
-  - echo "w" | sudo fdisk /dev/sda # Write changes and exit fdisk
-  - sudo partprobe /dev/sda # Inform kernel about partition table changes
+  # This sequence deletes existing sda3 and sda4 (if they exist) and
+  # creates a new sda3 spanning the remaining disk for LVM.
+
+  # We'll use sfdisk for robust scripting of partitioning.
+  # First, clear any existing LVM configuration that might cling to sda4/sda3.
+  # This is a bit aggressive but ensures a clean slate.
+  - sudo vgchange -an rootvg || true # Deactivate rootvg if it's active
+  - sudo pvremove -y /dev/sda4 || true # Remove old PV from sda4 if it exists
+  - sudo pvremove -y /dev/sda3 || true # Remove old PV from sda3 if it exists
+
+  # Define the new partition layout for /dev/sda
+  # sda1 (EFI) and sda2 (boot) are left as-is.
+  # sda3 will be the new LVM partition spanning the rest of the disk.
+  # ***VERIFY THESE START SECTORS AND SIZES AGAINST YOUR VM'S FDISK -L OUTPUT***
+  - |
+    (
+    echo label: gpt # Use GPT partition table for modern VMs and large disks
+    echo unit: sectors
+    echo /dev/sda1 : start=2048, size=1048576, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B # EFI System partition (512MB)
+    echo /dev/sda2 : start=1050624, size=2097152, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4 # Linux filesystem (1GB for /boot)
+    echo /dev/sda3 : start=3147776, type=E6D6D379-F1EE-455F-B4D3-BEA92B6002A2 # Linux LVM (fills rest of disk)
+    ) | sudo sfdisk /dev/sda
+
+  # Inform kernel about partition table changes
+  - sudo partprobe /dev/sda
 
   # Ensure PV and VG are correctly set up and expanded
   - sudo pvcreate /dev/sda3

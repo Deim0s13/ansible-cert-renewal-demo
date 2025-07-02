@@ -69,7 +69,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
     version   = "latest"
   }
 
-  custom_data = var.cloud_init_file_path != null ? filebase64(var.cloud_init_file_path) : null
+  custom_data = var.cloud_init_file_path != null ? file(var.cloud_init_file_path) : null
 
   tags = {
     role        = var.name

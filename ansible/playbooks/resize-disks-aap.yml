@@ -1,84 +1,117 @@
 ---
-# ─────────────────────────────────────────────────────────────
-# Playbook : resize-disks-aap.yml
-# Purpose  : Grow the LV that backs /opt without touching
-#            partitions or PVs.  Works even if the LV is *not*
-#            named rootvg/optlv.
-# ─────────────────────────────────────────────────────────────
-
-- name: Resize LV backing /opt on AAP node
+- name: Resize and mount /opt on AAP node
   hosts: aap
   gather_facts: false
   become: true
 
   vars:
-    vg_name       : "rootvg"      # ← only the VG is fixed
-    new_lv_size   : "60g"         # ← desired target size
-    mount_point   : "/opt"
+    # Connection variables (passed via -e, so these defaults are backup)
+    ansible_host: "{{ aap_ip | default('10.0.1.12') }}"
+    ansible_port: "{{ aap_port | default('22') }}"
+    ansible_user: "{{ aap_target_user | default('rheluser') }}"
+    ansible_ssh_private_key_file: "{{ aap_target_ssh_key | default('/home/rheluser/.ssh/ansible-demo-key') }}"
+    ansible_python_interpreter: "/usr/bin/python3"
+
+    # Define the LVM/mount variables here:
+    vg_name: "rootvg"
+    opt_lv_name: "optlv"
+    opt_lv_size: "60g"
+    opt_mount_point: "/opt"
 
   tasks:
-    # ───────────────────────────────────────────────────────
-    # Step 1 ▸ Identify the current LV path for /opt
-    # ───────────────────────────────────────────────────────
-    - name: Find LV backing {{ mount_point }}
-      command: findmnt -no SOURCE {{ mount_point }}
-      register: lv_source
-      changed_when: false
 
-    - name: Fail if {{ mount_point }} is not a logical volume
-      fail:
-        msg: "{{ mount_point }} is mounted on {{ lv_source.stdout }}, not an LVM LV."
-      when: lv_source.stdout is not search('^/dev/mapper/')
-
-    - name: Set facts for VG & LV names
-      set_fact:
-        lv_device : "{{ lv_source.stdout }}"                                 # /dev/mapper/rootvg-optlv
-        lv_name   : "{{ (lv_source.stdout | basename).split('-', 1)[1] }}"   # optlv  (after first ‘-’)
-      # Explanation:
-      #   basename(rootvg-optlv) → rootvg-optlv
-      #   split('-',1)[1]        → optlv
-
-    # ───────────────────────────────────────────────────────
-    # Step 2 ▸ Show current sizes for context
-    # ───────────────────────────────────────────────────────
-    - name: VG free space
+    # ─────────────────────────────────────────────────────
+    # Step 1: Check available space in rootvg
+    # ─────────────────────────────────────────────────────
+    - name: Debug rootvg free space
       command: vgdisplay {{ vg_name }}
-      register: vg_info
+      register: vgdisplay_output
       changed_when: false
 
-    - name: LV size before resize
-      command: lvdisplay "{{ lv_device | regex_replace('mapper', 'dev') }}"
-      # converts /dev/mapper/rootvg-optlv → /dev/dev/rootvg-optlv → still
-      # works but simpler to skip if lvdisplay fails—optional.
-      register: lv_info
-      changed_when: false
-      ignore_errors: true
-
-    - name: Show current VG/LV information
+    - name: Print rootvg space
       debug:
-        msg:
-          - "{{ (vg_info.stdout_lines | select('search','Free.*Size')).list }}"
-          - "{{ (lv_info.stdout_lines | select('search','LV Size')).list | default('LV display skipped') }}"
+        var: vgdisplay_output.stdout_lines
 
-    # ───────────────────────────────────────────────────────
-    # Step 3 ▸ Extend LV & filesystem in one shot
-    # ───────────────────────────────────────────────────────
-    - name: Extend {{ lv_name }} to {{ new_lv_size }} & grow XFS
-      community.general.lvol:
-        vg       : "{{ vg_name }}"
-        lv       : "{{ lv_name }}"
-        size     : "{{ new_lv_size }}"
-        resizefs : true
-        state    : present
+    # ─────────────────────────────────────────────────────
+    # Step 2: Create Logical Volume for /opt
+    # ─────────────────────────────────────────────────────
+    - name: Create logical volume for /opt
+      lvol:
+        vg: "{{ vg_name }}"
+        lv: "{{ opt_lv_name }}"
+        size: "{{ opt_lv_size }}"
+        state: present
+      register: create_lv_result
+      ignore_errors: false
 
-    # ───────────────────────────────────────────────────────
-    # Step 4 ▸ Verify new capacity
-    # ───────────────────────────────────────────────────────
-    - name: Confirm {{ mount_point }} size after resize
-      command: df -h {{ mount_point }}
-      register: df_opt
+    # ─────────────────────────────────────────────────────
+    # NEW STEP: Verify if the LV actually exists after the lvol task.
+    # This will be the definitive check for subsequent 'when' conditions.
+    # ─────────────────────────────────────────────────────
+    - name: Verify optlv exists after creation attempt
+      command: "lvdisplay /dev/{{ vg_name }}/{{ opt_lv_name }}"
+      register: lv_exist_check
+      failed_when: lv_exist_check.rc != 0
       changed_when: false
 
-    - name: Show updated /opt usage
+    # ─────────────────────────────────────────────────────
+    # Step 2.5 (moved the debug after the existence check)
+    # ─────────────────────────────────────────────────────
+    - name: Print LV creation result (full output for debugging)
       debug:
-        var: df_opt.stdout_lines
+        var: create_lv_result
+        verbosity: 1 # Keep this to see the output with -vvv
+
+    # ─────────────────────────────────────────────────────
+    # Step 3: Format the LV with XFS
+    # ─────────────────────────────────────────────────────
+    - name: Create filesystem on the new logical volume
+      filesystem:
+        fstype: xfs
+        dev: "/dev/{{ vg_name }}/{{ opt_lv_name }}"
+      when: lv_exist_check.rc == 0
+
+    # ─────────────────────────────────────────────────────
+    # Step 4: Ensure /opt Exists
+    # ─────────────────────────────────────────────────────
+    - name: Ensure /opt directory exists
+      file:
+        path: "{{ opt_mount_point }}"
+        state: directory
+
+    # ─────────────────────────────────────────────────────
+    # Step 5: Mount /opt
+    # ─────────────────────────────────────────────────────
+    - name: Mount /opt
+      mount:
+        path: "{{ opt_mount_point }}"
+        src: "/dev/{{ vg_name }}/{{ opt_lv_name }}"
+        fstype: xfs
+        opts: defaults
+        state: mounted
+      # Only attempt to mount if the LV verification task succeeded.
+      when: lv_exist_check.rc == 0
+
+    # ─────────────────────────────────────────────────────
+    # Step 6: Persist /opt Mount in fstab
+    # ─────────────────────────────────────────────────────
+    - name: Make /opt mount persistent
+      mount:
+        path: "{{ opt_mount_point }}"
+        src: "/dev/{{ vg_name }}/{{ opt_lv_name }}"
+        fstype: xfs
+        opts: defaults
+        state: present
+      # Only persist if the LV verification task succeeded.
+      when: lv_exist_check.rc == 0
+
+    # ─────────────────────────────────────────────────────
+    # Step 7: Confirm mount success
+    # ─────────────────────────────────────────────────────
+    - name: Check mount target
+      command: mountpoint {{ opt_mount_point }}
+      register: mountpoint_check
+      failed_when: mountpoint_check.rc != 0
+      changed_when: false
+      # Only check if the mount was attempted.
+      when: lv_exist_check.rc == 0

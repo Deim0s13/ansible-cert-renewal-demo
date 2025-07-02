@@ -94,3 +94,11 @@ variable "cloud_init_file_path" {
   type        = string
   default     = null # Default to null if no custom cloud-init is needed
 }
+
+# ───────────────────────────────────
+# Context path for resolving template files, passed from calling module
+# ───────────────────────────────────
+variable "template_context_path" {
+  description = "The path.module of the calling module, used for resolving paths within template files."
+  type        = string
+}

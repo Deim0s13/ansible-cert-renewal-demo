@@ -69,7 +69,9 @@ resource "azurerm_linux_virtual_machine" "vm" {
     version   = "latest"
   }
 
-  custom_data = var.cloud_init_file_path != null ? templatefile(var.cloud_init_file_path, {}) : null
+  custom_data = var.cloud_init_file_path != null ? templatefile(var.cloud_init_file_path, {
+    module_path = var.template_context_path # This is what passes the path into the template
+  }) : null
 
   tags = {
     role        = var.name

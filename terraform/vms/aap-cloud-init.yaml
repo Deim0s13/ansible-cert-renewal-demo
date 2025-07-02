@@ -1,0 +1,115 @@
+# terraform/modules/vms/aap-cloud-init.yaml
+# Cloud-init configuration for AAP VM disk setup
+
+# Required for LVM commands
+packages:
+  - lvm2
+  - xfsprogs # Or e2fsprogs if you prefer ext4
+
+runcmd:
+  # 1. Extend the last existing partition to fill the disk, or create a new one.
+  #    Given your lsblk, the large unallocated space is after sda2.
+  #    We'll assume the Azure base image might leave the rest unallocated,
+  #    or might create a default root partition. We need to create/resize
+  #    a partition to consume remaining space.
+  #    Using parted for safety to extend the last primary partition or create a new one.
+  #    We target /dev/sda, which is the OS disk.
+  #    This command extends the last partition to 100% of the disk.
+  #    If sda3/sda4 exist, this might merge them, or extend one over the other.
+  #    A safer approach might be to ensure *no* sda3/sda4 are there initially
+  #    and create a single new one for LVM.
+  #    Given the 2MB sda3, it's safer to ensure it's removed and a new sda3 is created.
+
+  - echo "n 1" | sudo fdisk /dev/sda
+  - echo "p" | sudo fdisk /dev/sda
+  - echo "d" | sudo fdisk /dev/sda
+  - echo "3" | sudo fdisk /dev/sda # Delete sda3
+  - echo "d" | sudo fdisk /dev/sda
+  - echo "4" | sudo fdisk /dev/sda # Delete sda4
+  - echo "n" | sudo fdisk /dev/sda
+  - echo "p" | sudo fdisk /dev/sda
+  - echo "3" | sudo fdisk /dev/sda # Create new sda3
+  - echo "" | sudo fdisk /dev/sda # Default first sector
+  - echo "" | sudo fdisk /dev/sda # Default last sector (fill disk)
+  - echo "t" | sudo fdisk /dev/sda
+  - echo "3" | sudo fdisk /dev/sda # Select new sda3
+  - echo "8e" | sudo fdisk /dev/sda # Set type to Linux LVM
+  - echo "w" | sudo fdisk /dev/sda # Write changes
+  - sudo partprobe /dev/sda # Inform kernel about partition table changes
+
+  # 2. Create Physical Volume (PV) on the new sda3
+  - sudo pvcreate /dev/sda3
+
+  # 3. Extend/create rootvg to use the new PV
+  # Check if rootvg exists. If it does, extend it. If not, create it.
+  - |
+    if sudo vgdisplay rootvg &>/dev/null; then
+      sudo vgextend rootvg /dev/sda3
+    else
+      sudo vgcreate rootvg /dev/sda3
+    fi
+
+  # 4. Create/Resize Logical Volumes (LVs)
+  # Ensure the target sizes meet AAP requirements for each mount point.
+  # Example sizes, adjust as needed. Keep in mind your total 128GB.
+  # Use 'lvcreate -L' for fixed size or 'lvcreate -l 100%FREE' for remaining space.
+
+  # Current rootlv, usrlv, varlv are small, let's give them more realistic sizes
+  # and add optlv
+  - |
+    # lvcreate -L [SIZE] -n [LV_NAME] [VG_NAME]
+    # Check if LV exists before creating to avoid errors on re-runs (though cloud-init runs once)
+    sudo lvcreate -L 20G -n rootlv rootvg || sudo lvextend -L 20G /dev/mapper/rootvg-rootlv
+    sudo lvcreate -L 30G -n usrlv rootvg || sudo lvextend -L 30G /dev/mapper/rootvg-usrlv
+    sudo lvcreate -L 60G -n optlv rootvg || sudo lvextend -L 60G /dev/mapper/rootvg-optlv # Your target /opt size
+    sudo lvcreate -L 20G -n varlv rootvg || sudo lvextend -L 20G /dev/mapper/rootvg-varlv
+    sudo lvcreate -L 5G -n homelv rootvg || sudo lvextend -L 5G /dev/mapper/rootvg-homelv
+    sudo lvcreate -L 5G -n tmplv rootvg || sudo lvextend -L 5G /dev/mapper/rootvg-tmplv
+
+  # 5. Format Filesystems (XFS recommended for RHEL)
+  - sudo mkfs.xfs /dev/mapper/rootvg-rootlv
+  - sudo mkfs.xfs /dev/mapper/rootvg-usrlv
+  - sudo mkfs.xfs /dev/mapper/rootvg-optlv
+  - sudo mkfs.xfs /dev/mapper/rootvg-varlv
+  - sudo mkfs.xfs /dev/mapper/rootvg-homelv
+  - sudo mkfs.xfs /dev/mapper/rootvg-tmplv
+
+  # 6. Create mount points (if not already existing from the base image)
+  - sudo mkdir -p /opt /usr /var /home /tmp
+
+  # 7. Mount Filesystems
+  - sudo mount /dev/mapper/rootvg-rootlv /
+  - sudo mount /dev/mapper/rootvg-usrlv /usr
+  - sudo mount /dev/mapper/rootvg-optlv /opt
+  - sudo mount /dev/mapper/rootvg-varlv /var
+  - sudo mount /dev/mapper/rootvg-homelv /home
+  - sudo mount /dev/mapper/rootvg-tmplv /tmp
+
+  # 8. Update /etc/fstab for persistence
+  # This part is crucial for making mounts persistent across reboots
+  # We should use /dev/mapper/VGNAME-LVNAME for fstab entries.
+  - echo "/dev/mapper/rootvg-rootlv / xfs defaults 0 0" | sudo tee -a /etc/fstab
+  - echo "/dev/mapper/rootvg-usrlv /usr xfs defaults 0 0" | sudo tee -a /etc/fstab
+  - echo "/dev/mapper/rootvg-optlv /opt xfs defaults 0 0" | sudo tee -a /etc/fstab
+  - echo "/dev/mapper/rootvg-varlv /var xfs defaults 0 0" | sudo tee -a /etc/fstab
+  - echo "/dev/mapper/rootvg-homelv /home xfs defaults 0 0" | sudo tee -a /etc/fstab
+  - echo "/dev/mapper/rootvg-tmplv /tmp xfs defaults 0 0" | sudo tee -a /etc/fstab
+
+  # 9. Grow filesystems to ensure they fill the LVs immediately
+  # (though mkfs.xfs usually fills it, this is good practice after lvextend)
+  - sudo xfs_growfs /
+  - sudo xfs_growfs /usr
+  - sudo xfs_growfs /opt
+  - sudo xfs_growfs /var
+  - sudo xfs_growfs /home
+  - sudo xfs_growfs /tmp
+
+write_files:
+  - path: /etc/sysconfig/lvm
+    permissions: "0644"
+    owner: "root"
+    group: "root"
+    content: |
+      # LVM configuration for cloud-init
+      LVM_SUPPRESS_FD_WARNINGS=1
+      LVM_VG_CONF_INCLUDE_VGNAME=1

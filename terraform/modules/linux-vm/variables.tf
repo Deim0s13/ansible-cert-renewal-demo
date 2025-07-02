@@ -78,10 +78,19 @@ variable "disk_size_gb" {
 }
 
 # ───────────────────────────────────
-# **NEW** Optional data-disk size
+# Optional data-disk size
 # ───────────────────────────────────
 variable "data_disk_size_gb" {
   description = "Size of an additional managed disk (GB). 0 = no data disk"
   type        = number
   default     = 0
+}
+
+# ───────────────────────────────────
+# Optional path to a cloud-init YAML file
+# ───────────────────────────────────
+variable "cloud_init_file_path" {
+  description = "Optional path to a cloud-init YAML file for custom VM configuration. Relative to the caller module."
+  type        = string
+  default     = null # Default to null if no custom cloud-init is needed
 }

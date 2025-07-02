@@ -16,7 +16,7 @@ module "rhel_web" {
   resource_group_name   = var.resource_group_name
   admin_username        = var.admin_username
   admin_ssh_public_key  = var.admin_ssh_public_key
-  template_context_path = path.module
+  template_context_path = path.module # <--- ADD THIS LINE
 }
 
 # ───────────────────────────────────
@@ -35,7 +35,7 @@ module "aap" {
   vm_size               = "Standard_D4s_v5"
   disk_size_gb          = 128
   cloud_init_file_path  = "${path.module}/aap-cloud-init.tftpl"
-  template_context_path = path.module
+  template_context_path = path.module # <--- ADD THIS LINE
 }
 
 # ───────────────────────────────────

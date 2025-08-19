@@ -22,6 +22,7 @@ COMMANDS:
   connect         Get SSH connection command for jump host
   aap-status      Check AAP installation progress
   aap-logs        Show AAP installation logs
+  aap-disk        Check AAP host disk space
   inventory       Display current inventory file
   terraform-plan  Plan terraform changes without applying
   clean-logs      Remove old log files
@@ -34,6 +35,7 @@ EXAMPLES:
   ./demo-helper.sh status         # Check deployment status
   ./demo-helper.sh connect        # Get SSH command
   ./demo-helper.sh aap-logs       # Monitor AAP installation
+  ./demo-helper.sh aap-disk       # Check AAP disk space
 
 EOF
 }
@@ -155,6 +157,43 @@ aap_logs_command() {
     
     ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -i "$PRIVATE_KEY_PATH" rheluser@"$jump_ip" \
         "sudo tail -f /opt/ansible-automation-platform-setup*/setup.log 2>/dev/null || echo 'Setup log not found yet. Installation may not have started.'"
+}
+
+aap_disk_command() {
+    local jump_ip=$(terraform -chdir="terraform/foundations" output -raw jump_host_ip 2>/dev/null)
+    if [[ -z "$jump_ip" ]]; then
+        log_error "Environment not deployed or jump host IP not available"
+        return 1
+    fi
+    
+    log_info "Checking AAP host disk space..."
+    
+    ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -i "$PRIVATE_KEY_PATH" rheluser@"$jump_ip" << 'REMOTE_SCRIPT'
+        echo "🗄️  AAP Host Disk Space Report"
+        echo "=================================="
+        
+        # Check if we can connect to AAP host
+        if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no rheluser@10.0.1.12 "echo 'Connected to AAP host'" 2>/dev/null; then
+            echo "📊 Current disk usage on AAP host:"
+            ssh -o StrictHostKeyChecking=no rheluser@10.0.1.12 "df -h" 2>/dev/null
+            
+            echo ""
+            echo "🔍 LVM status:"
+            ssh -o StrictHostKeyChecking=no rheluser@10.0.1.12 "sudo lvscan 2>/dev/null || echo 'LVM not available'"
+            
+            echo ""
+            echo "📁 Key directories:"
+            ssh -o StrictHostKeyChecking=no rheluser@10.0.1.12 "ls -la /opt/ 2>/dev/null || echo '/opt not accessible'"
+            ssh -o StrictHostKeyChecking=no rheluser@10.0.1.12 "ls -la /var/tmp/ 2>/dev/null || echo '/var/tmp not accessible'"
+            
+            echo ""
+            echo "💾 Available space summary:"
+            ssh -o StrictHostKeyChecking=no rheluser@10.0.1.12 "df -h | grep -E '(Filesystem|/opt|/var|/$)'" 2>/dev/null
+            
+        else
+            echo "❌ Cannot connect to AAP host. Check if it's deployed and SSH is working."
+        fi
+REMOTE_SCRIPT
 }
 
 inventory_command() {
@@ -306,6 +345,9 @@ case "${1:-help}" in
         ;;
     aap-logs)
         aap_logs_command
+        ;;
+    aap-disk)
+        aap_disk_command
         ;;
     inventory)
         inventory_command

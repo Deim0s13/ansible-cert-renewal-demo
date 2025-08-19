@@ -1,0 +1,193 @@
+---
+# ─────────────────────────────────────────────────────────────
+# Playbook : resize-disks-aap.yml  
+# Purpose  : Expand disk space for AAP installation
+#            - Ensures /opt has sufficient space for installer extraction
+#            - Ensures /var has space for installation files
+#            - Safe, non-destructive approach using LVM
+# ─────────────────────────────────────────────────────────────
+
+- name: Expand disk space for AAP installation
+  hosts: aap
+  gather_facts: true
+  become: true
+
+  vars:
+    # Target sizes for AAP installation requirements
+    opt_target_size: "40g"    # Space for installer extraction and AAP files
+    var_target_size: "20g"    # Space for logs and temporary files
+
+  tasks:
+    
+    # ───────────────────────────────────────────────────────
+    # Step 1: Check current disk situation
+    # ───────────────────────────────────────────────────────
+    - name: Show current disk usage
+      command: df -h
+      register: df_before
+      changed_when: false
+
+    - name: Show current LVM setup
+      command: lvscan
+      register: lv_scan
+      changed_when: false
+      failed_when: false
+
+    - name: Display current state
+      debug:
+        msg:
+          - "Current disk usage:"
+          - "{{ df_before.stdout_lines }}"
+          - "Current logical volumes:"
+          - "{{ lv_scan.stdout_lines | default(['No LVM detected']) }}"
+
+    # ───────────────────────────────────────────────────────
+    # Step 2: Identify volume group
+    # ───────────────────────────────────────────────────────
+    - name: Get available volume groups
+      command: vgs --noheadings -o vg_name
+      register: vg_list
+      changed_when: false
+      failed_when: false
+
+    - name: Set volume group name
+      set_fact:
+        vg_name: "{{ vg_list.stdout_lines[0].strip() }}"
+      when: 
+        - vg_list.rc == 0
+        - vg_list.stdout_lines | length > 0
+
+    - name: Display volume group
+      debug:
+        msg: "Using volume group: {{ vg_name | default('No VG found') }}"
+
+    # ───────────────────────────────────────────────────────
+    # Step 3: Handle /opt space expansion
+    # ───────────────────────────────────────────────────────
+    - name: Check if /opt is on LVM
+      command: findmnt -no SOURCE /opt
+      register: opt_mount_check
+      changed_when: false
+      failed_when: false
+
+    - name: Expand existing /opt logical volume
+      community.general.lvol:
+        vg: "{{ vg_name }}"
+        lv: "{{ (opt_mount_check.stdout | basename).split('-', 1)[1] }}"
+        size: "{{ opt_target_size }}"
+        resizefs: true
+        state: present
+      when: 
+        - vg_name is defined
+        - opt_mount_check.rc == 0
+        - opt_mount_check.stdout is search('^/dev/mapper/')
+      register: opt_expand_result
+
+    - name: Create /opt logical volume if it doesn't exist
+      block:
+        - name: Create /opt logical volume
+          community.general.lvol:
+            vg: "{{ vg_name }}"
+            lv: opt
+            size: "{{ opt_target_size }}"
+            state: present
+          
+        - name: Format /opt logical volume
+          filesystem:
+            fstype: xfs
+            dev: "/dev/{{ vg_name }}/opt"
+          
+        - name: Ensure /opt directory exists
+          file:
+            path: /opt
+            state: directory
+            mode: '0755'
+          
+        - name: Mount /opt
+          mount:
+            path: /opt
+            src: "/dev/{{ vg_name }}/opt"
+            fstype: xfs
+            state: mounted
+            
+      when: 
+        - vg_name is defined
+        - opt_expand_result is skipped
+
+    # ───────────────────────────────────────────────────────
+    # Step 4: Handle /var space expansion (if on LVM)
+    # ───────────────────────────────────────────────────────
+    - name: Check if /var is on LVM
+      command: findmnt -no SOURCE /var
+      register: var_mount_check
+      changed_when: false
+      failed_when: false
+
+    - name: Expand /var logical volume if it exists
+      community.general.lvol:
+        vg: "{{ vg_name }}"
+        lv: "{{ (var_mount_check.stdout | basename).split('-', 1)[1] }}"
+        size: "{{ var_target_size }}"
+        resizefs: true
+        state: present
+      when: 
+        - vg_name is defined
+        - var_mount_check.rc == 0
+        - var_mount_check.stdout is search('^/dev/mapper/')
+
+    # ───────────────────────────────────────────────────────
+    # Step 5: Create installer staging area
+    # ───────────────────────────────────────────────────────
+    - name: Ensure installer staging directory exists
+      file:
+        path: /var/tmp/aap-installer
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+
+    # ───────────────────────────────────────────────────────
+    # Step 6: Verify final disk layout
+    # ───────────────────────────────────────────────────────
+    - name: Show final disk usage
+      command: df -h
+      register: df_after
+      changed_when: false
+
+    - name: Display final disk layout
+      debug:
+        msg:
+          - "=== Final Disk Layout ==="
+          - "{{ df_after.stdout_lines }}"
+          - ""
+          - "=== Space Available for AAP Installation ==="
+          - "/opt: Available for AAP extraction and installation"
+          - "/var: Available for logs and temporary files"
+          - "/var/tmp/aap-installer: Ready for installer staging"
+
+    # ───────────────────────────────────────────────────────
+    # Step 7: Verify sufficient space for AAP installer
+    # ───────────────────────────────────────────────────────
+    - name: Check available space in /opt
+      shell: df /opt | tail -n1 | awk '{print $4}'
+      register: opt_space_kb
+      changed_when: false
+
+    - name: Check available space in /var
+      shell: df /var | tail -n1 | awk '{print $4}'
+      register: var_space_kb
+      changed_when: false
+
+    - name: Verify sufficient space for AAP installation
+      assert:
+        that:
+          - (opt_space_kb.stdout | int) > 10485760  # 10GB in KB
+          - (var_space_kb.stdout | int) > 5242880   # 5GB in KB
+        success_msg: 
+          - "✅ Sufficient disk space available for AAP installation"
+          - "/opt has {{ (opt_space_kb.stdout | int / 1024 / 1024) | round(1) }}GB available"
+          - "/var has {{ (var_space_kb.stdout | int / 1024 / 1024) | round(1) }}GB available"
+        fail_msg:
+          - "❌ Insufficient disk space for AAP installation"
+          - "/opt needs at least 10GB, has {{ (opt_space_kb.stdout | int / 1024 / 1024) | round(1) }}GB"
+          - "/var needs at least 5GB, has {{ (var_space_kb.stdout | int / 1024 / 1024) | round(1) }}GB"

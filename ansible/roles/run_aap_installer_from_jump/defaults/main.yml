@@ -2,7 +2,7 @@
 # Defaults ▸ run_aap_installer_from_jump
 # ─────────────────────────────────────────────────────────────
 aap_bundle_path: "/var/tmp/aap-setup-2.5.tar.gz" # already on jump
-aap_extract_root: "/opt"
+aap_extract_root: "/opt"  # AAP will be extracted to /opt (expanded by disk resize)
 aap_registry_url: registry.redhat.io
 
 # provided by vault / CI  ───────────────────────────────────

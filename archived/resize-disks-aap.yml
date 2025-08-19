@@ -1,9 +1,10 @@
 ---
 # ─────────────────────────────────────────────────────────────
-# Playbook : resize-disks-aap.yml
-# Purpose  : Grow the LV that backs /opt without touching
-#            partitions or PVs.  Works even if the LV is *not*
-#            named rootvg/optlv.
+# Playbook : resize-disks-aap.yml  
+# Purpose  : Expand disk space for AAP installation
+#            - Ensures /opt has sufficient space for installer extraction
+#            - Ensures /var has space for installation files
+#            - Safe, non-destructive approach using LVM
 # ─────────────────────────────────────────────────────────────
 
 - name: Resize LV backing /opt on AAP node

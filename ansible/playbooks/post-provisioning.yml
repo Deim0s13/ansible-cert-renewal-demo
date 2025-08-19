@@ -47,3 +47,10 @@
     aap_target_ssh_key: "{{ private_key_path }}"
     aap_port: 22                       # change if non-default
     # the merged bootstrap playbook handles everything else
+
+# ─────────────────────────────────────────────────────
+# Step 4 – Expand disk space for AAP installation
+#           (ensures sufficient space for installer and AAP)
+# ─────────────────────────────────────────────────────
+- name: Step 4 – Expand AAP Host Disk Space
+  import_playbook: resize-disks-aap.yml

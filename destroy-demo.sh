@@ -155,6 +155,7 @@ if [[ -f "$FOUNDATIONS_DIR/terraform.tfstate" ]]; then
   log_info "Destroying foundation infrastructure..."
   if terraform -chdir="$FOUNDATIONS_DIR" destroy -auto-approve \
     -var="random_suffix=$RANDOM_SUFFIX" \
+    -var="resource_group_name=$RESOURCE_GROUP_NAME" \
     -var="admin_ssh_public_key=$SSH_KEY" \
     -var="location=$DEFAULT_LOCATION"; then
     

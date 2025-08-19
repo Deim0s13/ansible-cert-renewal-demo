@@ -179,6 +179,7 @@ terraform -chdir="$FOUNDATIONS_DIR" init
 log_info "Deploying foundation infrastructure..."
 terraform -chdir="$FOUNDATIONS_DIR" apply -auto-approve \
   -var="random_suffix=$RANDOM_SUFFIX" \
+  -var="resource_group_name=$RESOURCE_GROUP_NAME" \
   -var="admin_ssh_public_key=$(cat "$SSH_KEY_PATH")" \
   -var="location=$DEFAULT_LOCATION"
 

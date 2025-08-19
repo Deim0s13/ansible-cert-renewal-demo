@@ -37,6 +37,123 @@ if ! validate_all; then
 fi
 
 # ───────────────────────────────────────
+# Auto-Reset and Cleanup Functions
+# ───────────────────────────────────────
+auto_reset_terraform_state() {
+    log_step "Checking for Terraform state issues"
+    
+    local foundations_state="terraform/foundations/terraform.tfstate"
+    local vms_state="terraform/vms/terraform.tfstate"
+    local needs_reset=false
+    
+    # Check subscription consistency
+    if [[ -f "$foundations_state" ]]; then
+        local state_subscription=$(grep -o '"subscription_id": *"[^"]*"' "$foundations_state" | head -n 1 | cut -d '"' -f4 2>/dev/null || echo "")
+        local current_subscription=$(az account show --query id -o tsv 2>/dev/null || echo "")
+        
+        if [[ -n "$state_subscription" && -n "$current_subscription" && "$state_subscription" != "$current_subscription" ]]; then
+            log_warning "Terraform state subscription mismatch detected"
+            log_info "State subscription: $state_subscription"
+            log_info "Current subscription: $current_subscription"
+            needs_reset=true
+        fi
+    fi
+    
+    if [[ "$needs_reset" == "true" ]]; then
+        log_warning "Auto-resetting Terraform state for clean deployment"
+        
+        # Clean foundations
+        if [[ -d "terraform/foundations/.terraform" ]]; then
+            rm -rf "terraform/foundations/.terraform"
+            log_info "Removed foundations .terraform directory"
+        fi
+        
+        if ls terraform/foundations/terraform.tfstate* >/dev/null 2>&1; then
+            rm -f terraform/foundations/terraform.tfstate*
+            log_info "Removed foundations state files"
+        fi
+        
+        # Clean VMs
+        if [[ -d "terraform/vms/.terraform" ]]; then
+            rm -rf "terraform/vms/.terraform"
+            log_info "Removed VMs .terraform directory"
+        fi
+        
+        if ls terraform/vms/terraform.tfstate* >/dev/null 2>&1; then
+            rm -f terraform/vms/terraform.tfstate*
+            log_info "Removed VMs state files"
+        fi
+        
+        # Clean generated inventory
+        if [[ -f "ansible/inventory/generated-hosts" ]]; then
+            rm -f "ansible/inventory/generated-hosts"
+            log_info "Removed generated inventory file"
+        fi
+        
+        log_success "Terraform state reset complete"
+    else
+        log_info "Terraform state is clean"
+    fi
+}
+
+auto_cleanup_azure_resources() {
+    log_step "Checking for conflicting Azure resources"
+    
+    local target_rg="$RESOURCE_GROUP_NAME"
+    
+    # Check if target resource group exists
+    if az group show --name "$target_rg" &>/dev/null; then
+        log_warning "Resource group '$target_rg' already exists"
+        
+        # Check if it has resources
+        local resource_count=$(az resource list --resource-group "$target_rg" --query "length(@)" -o tsv 2>/dev/null || echo "0")
+        
+        if [[ "$resource_count" -gt 0 ]]; then
+            log_warning "Resource group contains $resource_count resources that could conflict"
+            log_info "Auto-cleaning existing resources for fresh deployment"
+            
+            # Show what will be cleaned
+            log_info "Resources being cleaned:"
+            az resource list --resource-group "$target_rg" --query "[].{Name:name, Type:type}" -o table
+            
+            # Delete the resource group
+            log_info "Deleting resource group '$target_rg'..."
+            az group delete --name "$target_rg" --yes --no-wait
+            
+            # Wait a moment for deletion to start
+            log_info "Waiting for deletion to initiate..."
+            sleep 10
+            
+            # Wait for deletion to complete
+            log_info "Waiting for resource group deletion to complete..."
+            local wait_count=0
+            while az group show --name "$target_rg" &>/dev/null && [[ $wait_count -lt 30 ]]; do
+                echo -n "."
+                sleep 10
+                ((wait_count++))
+            done
+            echo
+            
+            if az group show --name "$target_rg" &>/dev/null; then
+                log_warning "Resource group deletion still in progress (continuing anyway)"
+            else
+                log_success "Resource group '$target_rg' successfully deleted"
+            fi
+        else
+            log_info "Resource group '$target_rg' exists but is empty"
+        fi
+    else
+        log_info "No conflicting Azure resources found"
+    fi
+}
+
+# ───────────────────────────────────────
+# Auto-Reset and Cleanup Execution
+# ───────────────────────────────────────
+auto_reset_terraform_state
+auto_cleanup_azure_resources
+
+# ───────────────────────────────────────
 # Setup paths from config
 # ───────────────────────────────────────
 FOUNDATIONS_DIR="$SCRIPT_DIR/terraform/foundations"

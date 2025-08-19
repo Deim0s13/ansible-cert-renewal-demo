@@ -86,10 +86,11 @@ This demo environment has been enhanced with better reliability, consistency, an
 - Structured log files in `logs/` directory
 - Progress indicators and step-by-step feedback
 
-### 3. **Robust Error Handling**
-- Pre-flight validation prevents common failures
-- Graceful handling of missing files
-- Clear error messages with suggested fixes
+### 3. **Robust Error Handling & Auto-Recovery**
+- **Automatic state reset** - handles subscription changes automatically
+- **Auto-cleanup conflicts** - removes conflicting Azure resources
+- **Pre-flight validation** - prevents common failures
+- **Graceful handling** - clear error messages with suggested fixes
 
 ### 4. **Demo-Friendly Features**
 - Quick status checks for demos
@@ -126,7 +127,7 @@ ansible-cert-renewal-demo/
 
 ### During Demo
 ```bash
-# Deploy everything
+# Deploy everything (automatically handles cleanup and resets)
 ./build-demo.sh
 
 # Check status
@@ -135,8 +136,9 @@ ansible-cert-renewal-demo/
 # Get SSH connection
 ./demo-helper.sh connect
 
-# Monitor AAP installation
+# Monitor AAP installation and disk space
 ./demo-helper.sh aap-logs
+./demo-helper.sh aap-disk
 ```
 
 ### After Demo

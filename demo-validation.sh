@@ -118,24 +118,12 @@ validate_aap_installer() {
 }
 
 validate_terraform_state() {
-    log_step "Checking Terraform state consistency"
+    log_step "Checking Terraform state"
     
     local foundations_state="terraform/foundations/terraform.tfstate"
-    local vms_state="terraform/vms/terraform.tfstate"
     
     if [[ -f "$foundations_state" ]]; then
-        local state_subscription=$(grep -o '"subscription_id": *"[^"]*"' "$foundations_state" | head -n 1 | cut -d '"' -f4)
-        local current_subscription=$(az account show --query id -o tsv)
-        
-        if [[ "$state_subscription" != "$current_subscription" ]]; then
-            log_error "Terraform state subscription mismatch!"
-            log_error "State: $state_subscription"
-            log_error "Current: $current_subscription"
-            log_info "Clean state with: ./reset-demo.sh"
-            return 1
-        fi
-        
-        log_success "Terraform state is consistent"
+        log_info "Existing Terraform state found (will be auto-checked during deployment)"
     else
         log_info "No existing Terraform state found (fresh deployment)"
     fi

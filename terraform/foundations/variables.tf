@@ -7,7 +7,6 @@
 # Name of the Azure Resource Group where all infrastructure will live
 # ───────────────────────────────────
 variable "resource_group_name" {
-
   type        = string
   description = "The name of the resource group used for the demo environment"
   default     = "cert-renewal-demo-rg"

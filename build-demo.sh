@@ -84,7 +84,7 @@ log_success "Infrastructure outputs extracted successfully"
 # ───────────────────────────────────────
 # Step 2b: Create Dynamic Inventory for Ansible (Initial - for connecting to jump host)
 # ───────────────────────────────────────
-INVENTORY_FILE="$ROOT_DIR/ansible/inventory/generated-hosts"
+INVENTORY_FILE="$SCRIPT_DIR/ansible/inventory/generated-hosts"
 
 echo -e "\n Generating dynamic inventory at $INVENTORY_FILE..."
 cat > "$INVENTORY_FILE" <<EOF

@@ -3,6 +3,7 @@
 ##########################################
 # build-demo.sh
 # Fully automates the provisioning of the demo:
+# - Validates environment prerequisites
 # - Applies foundations (network, NSGs, jump host)
 # - Pulls outputs from foundations
 # - Decodes Windows password from base64
@@ -12,70 +13,35 @@
 
 set -euo pipefail
 
+# Source shared configuration and validation functions
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/demo-config.env"
+source "$SCRIPT_DIR/demo-validation.sh"
+
 # ───────────────────────────────────────
-# Logging Setup
+# Logging Setup  
 # ───────────────────────────────────────
-ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LOG_FILE="$ROOT_DIR/deploy-$(date +%Y%m%d-%H%M%S).log"
+LOG_FILE="$LOG_DIR/deploy-$(date +%Y%m%d-%H%M%S).log"
 exec > >(tee "$LOG_FILE") 2>&1
 
-# ───────────────────────────────────────
-# Safety Check: Validate Azure Subscription
-# ───────────────────────────────────────
-EXPECTED_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-echo "Active Azure subscription: $EXPECTED_SUBSCRIPTION_ID"
+log_info "Starting demo environment deployment"
+log_info "Log file: $LOG_FILE"
 
-if [[ -f terraform.tfstate ]]; then
-  STATE_SUBSCRIPTION_ID=$(grep -o '"subscription_id": *"[^"]*"' terraform.tfstate | head -n 1 | cut -d '"' -f4)
-  if [[ "$STATE_SUBSCRIPTION_ID" != "$EXPECTED_SUBSCRIPTION_ID" ]]; then
-    echo "Subscription mismatch detected!"
-    echo "Terraform state is tied to: $STATE_SUBSCRIPTION_ID"
-    echo "Your current Azure subscription is: $EXPECTED_SUBSCRIPTION_ID"
-    echo ""
-    echo "Please clean the state before proceeding:"
-    echo "    rm -rf .terraform terraform.tfstate terraform.tfstate.backup"
+# ───────────────────────────────────────
+# Pre-flight Validation
+# ───────────────────────────────────────
+log_step "Running pre-flight validations"
+if ! validate_all; then
+    log_error "Pre-flight validation failed. Aborting deployment."
     exit 1
-  fi
 fi
 
 # ───────────────────────────────────────
-# Paths and Configuration
+# Setup paths from config
 # ───────────────────────────────────────
-FOUNDATIONS_DIR="$ROOT_DIR/terraform/foundations"
-VMS_DIR="$ROOT_DIR/terraform/vms"
-SECRETS_DIR="$ROOT_DIR/terraform/secrets"
-ENCODED_FILE="$SECRETS_DIR/windows-admin.b64"
-RANDOM_SUFFIX="dev01"
-ADMIN_USERNAME="rheluser"
-SSH_KEY_PATH="$HOME/.ssh/ansible-demo-key.pub"
-PRIVATE_KEY_PATH="$HOME/.ssh/ansible-demo-key"
-export PRIVATE_KEY_PATH # Exporting so ansible-playbook can pick it up if needed, though passing via -e is more explicit
-INSTALLER_PATH="$ROOT_DIR/downloads/aap-setup-2.5.tar.gz"
-GIT_REPO_URL="https://github.com/Deim0s13/ansible-cert-renewal-demo.git"
-
-# ───────────────────────────────────────
-# Validations
-# ───────────────────────────────────────
-if [[ ! -f "$ENCODED_FILE" ]]; then
-  echo "❌ Secret file not found: $ENCODED_FILE"
-  exit 1
-fi
-
-if [[ ! -f "$SSH_KEY_PATH" ]]; then
-  echo "❌ SSH public key not found: $SSH_KEY_PATH"
-  exit 1
-fi
-
-if [[ ! -f "$PRIVATE_KEY_PATH" ]]; then
-  echo "❌ Matching private key not found: $PRIVATE_KEY_PATH"
-  exit 1
-fi
-
-if [[ ! -f "$INSTALLER_PATH" ]]; then
-  echo "❌ AAP installer not found at $INSTALLER_PATH"
-  echo "Please download and place it in: downloads/"
-  exit 1
-fi
+FOUNDATIONS_DIR="$SCRIPT_DIR/terraform/foundations"
+VMS_DIR="$SCRIPT_DIR/terraform/vms"
+export PRIVATE_KEY_PATH # Export for ansible-playbook
 
 # ───────────────────────────────────────
 # Decode Windows Admin Password
@@ -89,21 +55,31 @@ fi
 # ───────────────────────────────────────
 # Step 1: Apply Foundations
 # ───────────────────────────────────────
-echo -e "\n Applying foundations (network, NSGs)..."
+log_step "Applying foundations (network, NSGs)"
+log_info "Initializing Terraform for foundations..."
 terraform -chdir="$FOUNDATIONS_DIR" init
+
+log_info "Deploying foundation infrastructure..."
 terraform -chdir="$FOUNDATIONS_DIR" apply -auto-approve \
   -var="random_suffix=$RANDOM_SUFFIX" \
-  -var="admin_ssh_public_key=$(cat "$SSH_KEY_PATH")"
+  -var="admin_ssh_public_key=$(cat "$SSH_KEY_PATH")" \
+  -var="location=$DEFAULT_LOCATION"
+
+log_success "Foundation infrastructure deployed successfully"
 
 # ───────────────────────────────────────
 # Step 2: Extract Outputs
 # ───────────────────────────────────────
-echo -e "\n Extracting Terraform output values..."
+log_step "Extracting Terraform output values"
 SUBNET_ID=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw subnet_id)
 LINUX_NSG_ID=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw linux_nsg_id)
 WINDOWS_NSG_ID=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw windows_nsg_id)
 JUMP_HOST_IP=$(terraform -chdir="$FOUNDATIONS_DIR" output -raw jump_host_ip)
 SSH_KEY=$(cat "$SSH_KEY_PATH")
+
+log_info "Jump Host IP: $JUMP_HOST_IP"
+log_info "Subnet ID: $SUBNET_ID"
+log_success "Infrastructure outputs extracted successfully"
 
 # ───────────────────────────────────────
 # Step 2b: Create Dynamic Inventory for Ansible (Initial - for connecting to jump host)
@@ -119,11 +95,14 @@ EOF
 # ───────────────────────────────────────
 # Step 3: Apply VM Layer
 # ───────────────────────────────────────
-echo -e "\n Applying VM layer..."
+log_step "Deploying VM layer (AAP, Web servers, AD/PKI)"
+log_info "Initializing Terraform for VMs..."
 terraform -chdir="$VMS_DIR" init
+
+log_info "Deploying virtual machines..."
 terraform -chdir="$VMS_DIR" apply -auto-approve \
-  -var="location=eastasia" \
-  -var="resource_group_name=cert-renewal-demo-rg" \
+  -var="location=$DEFAULT_LOCATION" \
+  -var="resource_group_name=$RESOURCE_GROUP_NAME" \
   -var="subnet_id=$SUBNET_ID" \
   -var="linux_nsg_id=$LINUX_NSG_ID" \
   -var="windows_nsg_id=$WINDOWS_NSG_ID" \
@@ -132,7 +111,7 @@ terraform -chdir="$VMS_DIR" apply -auto-approve \
   -var="admin_password=$ADMIN_PASSWORD" \
   -var="random_suffix=$RANDOM_SUFFIX"
 
-echo -e "\n Demo environment deployment complete."
+log_success "Virtual machines deployed successfully"
 
 # ───────────────────────────────────────
 # Step 4: Generate Full Inventory for Post-Provisioning (CRITICAL CHANGE HERE)
@@ -172,20 +151,40 @@ EOF
 # ───────────────────────────────────────
 # Step 5: Run Ansible Post-Provisioning Playbook
 # ───────────────────────────────────────
-echo -e "\n Running post-provisioning automation with Ansible..."
+log_step "Running Ansible post-provisioning automation"
 
 POST_PROVISION_INVENTORY="$INVENTORY_FILE"
-POST_PROVISION_CONFIG="$ROOT_DIR/ansible/ansible-post.cfg"
+POST_PROVISION_CONFIG="$SCRIPT_DIR/ansible/ansible.cfg"
 
-ANSIBLE_CONFIG="$POST_PROVISION_CONFIG" \
+log_info "Starting Ansible playbook execution..."
+log_info "This will configure the jump host, upload AAP installer, and bootstrap SSH connectivity"
+
+if ANSIBLE_CONFIG="$POST_PROVISION_CONFIG" \
 ansible-playbook ansible/playbooks/post-provisioning.yml \
   -i "$POST_PROVISION_INVENTORY" \
-  -e "installer_path=$INSTALLER_PATH repo_url=$GIT_REPO_URL private_key_path=$PRIVATE_KEY_PATH" # <--- Pass private_key_path
-
-ANSIBLE_EXIT_CODE=$?
-if [[ $ANSIBLE_EXIT_CODE -eq 0 ]]; then
-  echo "Post-provisioning completed successfully."
+  -e "installer_path=$INSTALLER_PATH repo_url=$GIT_REPO_URL private_key_path=$PRIVATE_KEY_PATH"; then
+  
+  log_success "Post-provisioning completed successfully"
 else
-  echo "❌ Post-provisioning failed. Please check Ansible logs."
+  log_error "Post-provisioning failed. Check Ansible logs above."
+  log_info "You can retry with: ansible-playbook ansible/playbooks/post-provisioning.yml -i $POST_PROVISION_INVENTORY"
   exit 1
 fi
+
+# ───────────────────────────────────────
+# Deployment Summary
+# ───────────────────────────────────────
+log_step "Deployment Summary"
+log_success "🎉 Demo environment is ready!"
+echo
+log_info "Connection Details:"
+echo "  📡 Jump Host: ssh rheluser@$JUMP_HOST_IP"
+echo "  🌐 AAP Controller: http://$AAP_HOST_IP (after AAP installation completes)"
+echo "  📁 Log file: $LOG_FILE"
+echo
+log_info "Next Steps:"
+echo "  1. SSH to jump host: ssh rheluser@$JUMP_HOST_IP"
+echo "  2. Navigate to project: cd ansible-cert-renewal-demo"
+echo "  3. Check AAP installation: sudo tail -f /opt/ansible-automation-platform-setup*/setup.log"
+echo
+log_warning "Remember to run './destroy-demo.sh --cleanup' when done to clean up resources!"

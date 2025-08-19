@@ -20,6 +20,7 @@ COMMANDS:
   check           Run comprehensive environment validation
   status          Show current deployment status
   connect         Get SSH connection command for jump host
+  test-ssh        Test SSH connectivity to jump host
   aap-status      Check AAP installation progress
   aap-logs        Show AAP installation logs
   aap-disk        Check AAP host disk space
@@ -34,6 +35,7 @@ EXAMPLES:
   ./demo-helper.sh check          # Validate environment
   ./demo-helper.sh status         # Check deployment status
   ./demo-helper.sh connect        # Get SSH command
+  ./demo-helper.sh test-ssh       # Test SSH connectivity
   ./demo-helper.sh aap-logs       # Monitor AAP installation
   ./demo-helper.sh aap-disk       # Check AAP disk space
 
@@ -100,6 +102,63 @@ connect_command() {
     echo
     log_info "Or copy and run this command:"
     echo "ssh -i $PRIVATE_KEY_PATH rheluser@$jump_ip"
+}
+
+test_ssh_command() {
+    local foundations_state="terraform/foundations/terraform.tfstate"
+    
+    if [[ ! -f "$foundations_state" ]]; then
+        log_error "Environment not deployed. Run ./build-demo.sh first"
+        return 1
+    fi
+    
+    local jump_ip=$(terraform -chdir="terraform/foundations" output -raw jump_host_ip 2>/dev/null)
+    if [[ -z "$jump_ip" ]]; then
+        log_error "Could not get jump host IP"
+        return 1
+    fi
+    
+    log_step "Testing SSH connectivity to jump host"
+    log_info "Jump host IP: $jump_ip"
+    
+    # Test basic connectivity
+    log_info "Testing basic SSH connection..."
+    if timeout 10 ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+       -i "$PRIVATE_KEY_PATH" rheluser@"$jump_ip" "echo 'SSH connection successful'"; then
+        log_success "✅ Basic SSH connectivity works"
+    else
+        log_error "❌ Basic SSH connectivity failed"
+        return 1
+    fi
+    
+    # Test sudo access
+    log_info "Testing sudo access..."
+    if timeout 15 ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+       -i "$PRIVATE_KEY_PATH" rheluser@"$jump_ip" "sudo whoami"; then
+        log_success "✅ Sudo access works"
+    else
+        log_warning "⚠️  Sudo access failed or timed out"
+    fi
+    
+    # Test package manager
+    log_info "Testing package manager..."
+    if timeout 15 ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+       -i "$PRIVATE_KEY_PATH" rheluser@"$jump_ip" "sudo dnf --version"; then
+        log_success "✅ Package manager (dnf) accessible"
+    else
+        log_warning "⚠️  Package manager test failed or timed out"
+    fi
+    
+    # Test cloud-init status
+    log_info "Checking cloud-init status..."
+    if timeout 10 ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+       -i "$PRIVATE_KEY_PATH" rheluser@"$jump_ip" "cloud-init status"; then
+        log_success "✅ Cloud-init status retrieved"
+    else
+        log_warning "⚠️  Could not check cloud-init status"
+    fi
+    
+    log_success "SSH connectivity test complete"
 }
 
 aap_status_command() {
@@ -339,6 +398,9 @@ case "${1:-help}" in
         ;;
     connect)
         connect_command
+        ;;
+    test-ssh)
+        test_ssh_command
         ;;
     aap-status)
         aap_status_command

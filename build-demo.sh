@@ -267,7 +267,44 @@ win_web
 EOF
 
 # ───────────────────────────────────────
-# Step 5: Run Ansible Post-Provisioning Playbook
+# Step 5: Wait for Jump Host to be Ready
+# ───────────────────────────────────────
+log_step "Waiting for jump host to be fully ready"
+
+wait_for_jump_host() {
+    local jump_ip="$1"
+    local max_attempts=30
+    local attempt=1
+    
+    log_info "Testing SSH connectivity to jump host ($jump_ip)..."
+    
+    while [[ $attempt -le $max_attempts ]]; do
+        log_info "Attempt $attempt/$max_attempts: Testing SSH connection..."
+        
+        if timeout 10 ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+           -i "$PRIVATE_KEY_PATH" rheluser@"$jump_ip" \
+           "echo 'SSH connection successful' && sudo dnf --version" &>/dev/null; then
+            log_success "Jump host is ready and responsive"
+            return 0
+        fi
+        
+        log_info "Jump host not ready yet, waiting 20 seconds..."
+        sleep 20
+        ((attempt++))
+    done
+    
+    log_error "Jump host failed to become ready after $max_attempts attempts"
+    log_info "You can manually test with: ssh -i $PRIVATE_KEY_PATH rheluser@$jump_ip"
+    return 1
+}
+
+if ! wait_for_jump_host "$JUMP_HOST_IP"; then
+    log_error "Cannot proceed with Ansible automation - jump host not accessible"
+    exit 1
+fi
+
+# ───────────────────────────────────────
+# Step 6: Run Ansible Post-Provisioning Playbook
 # ───────────────────────────────────────
 log_step "Running Ansible post-provisioning automation"
 

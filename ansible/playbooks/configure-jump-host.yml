@@ -6,8 +6,28 @@
 
   vars:
     ansible_python_interpreter: /usr/bin/python3
+    ansible_ssh_retries: 5
 
   tasks:
+
+    # ─────────────────────────────────────────────────────
+    # Wait for System Readiness
+    # ─────────────────────────────────────────────────────
+    - name: Wait for system to be fully ready
+      ansible.builtin.wait_for:
+        timeout: 300
+        delay: 10
+      delegate_to: localhost
+
+    - name: Ensure cloud-init is complete
+      ansible.builtin.command: cloud-init status --wait
+      register: cloud_init_result
+      changed_when: false
+      failed_when: false
+
+    - name: Show cloud-init status
+      ansible.builtin.debug:
+        msg: "Cloud-init status: {{ cloud_init_result.stdout | default('Unknown') }}"
 
     # ─────────────────────────────────────────────────────
     # System Update

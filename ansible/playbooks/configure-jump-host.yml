@@ -13,21 +13,17 @@
     # ─────────────────────────────────────────────────────
     # Wait for System Readiness
     # ─────────────────────────────────────────────────────
-    - name: Wait for system to be fully ready
-      ansible.builtin.wait_for:
-        timeout: 300
-        delay: 10
-      delegate_to: localhost
-
-    - name: Ensure cloud-init is complete
+    - name: Wait for cloud-init to complete
       ansible.builtin.command: cloud-init status --wait
       register: cloud_init_result
       changed_when: false
       failed_when: false
+      timeout: 300
 
     - name: Show cloud-init status
       ansible.builtin.debug:
         msg: "Cloud-init status: {{ cloud_init_result.stdout | default('Unknown') }}"
+      when: cloud_init_result is defined
 
     # ─────────────────────────────────────────────────────
     # System Update

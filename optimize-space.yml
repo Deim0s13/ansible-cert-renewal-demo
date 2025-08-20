@@ -1,0 +1,34 @@
+---
+- name: Optimize space for AAP installation
+  hosts: aap
+  become: true
+  tasks:
+    - name: Shrink /home to 500MB (currently 1GB)
+      community.general.lvol:
+        vg: rootvg
+        lv: homelv
+        size: 500m
+        resizefs: true
+        force: true
+    
+    - name: Shrink /tmp to 1GB (currently 2GB)  
+      community.general.lvol:
+        vg: rootvg
+        lv: tmplv
+        size: 1g
+        resizefs: true
+        force: true
+        
+    - name: Expand /opt to use available space (~62GB)
+      community.general.lvol:
+        vg: rootvg
+        lv: opt
+        size: 58g
+        resizefs: true
+        
+    - name: Show final space
+      shell: df -h /opt
+      register: opt_space
+      
+    - debug: 
+        msg: "/opt now has: {{ opt_space.stdout }}"

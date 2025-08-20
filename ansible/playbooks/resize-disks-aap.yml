@@ -13,9 +13,9 @@
   become: true
 
   vars:
-    # Target sizes for AAP installation requirements
-    opt_target_size: "40g"    # Space for installer extraction and AAP files
-    var_target_size: "20g"    # Space for logs and temporary files
+    # Target sizes for AAP installation requirements  
+    opt_target_size: "30g"    # Space for installer extraction and AAP files
+    var_target_size: "15g"    # Expand /var to 15GB total (currently has 10GB)
 
   tasks:
     
@@ -181,13 +181,13 @@
     - name: Verify sufficient space for AAP installation
       assert:
         that:
-          - (opt_space_kb.stdout | int) > 10485760  # 10GB in KB
-          - (var_space_kb.stdout | int) > 5242880   # 5GB in KB
+          - (opt_space_kb.stdout | int) > 15728640  # 15GB in KB (for 30GB /opt)
+          - (var_space_kb.stdout | int) > 10485760  # 10GB in KB (var already has space)
         success_msg: 
           - "✅ Sufficient disk space available for AAP installation"
           - "/opt has {{ (opt_space_kb.stdout | int / 1024 / 1024) | round(1) }}GB available"
           - "/var has {{ (var_space_kb.stdout | int / 1024 / 1024) | round(1) }}GB available"
         fail_msg:
           - "❌ Insufficient disk space for AAP installation"
-          - "/opt needs at least 10GB, has {{ (opt_space_kb.stdout | int / 1024 / 1024) | round(1) }}GB"
-          - "/var needs at least 5GB, has {{ (var_space_kb.stdout | int / 1024 / 1024) | round(1) }}GB"
+          - "/opt needs at least 15GB, has {{ (opt_space_kb.stdout | int / 1024 / 1024) | round(1) }}GB"
+          - "/var needs at least 10GB, has {{ (var_space_kb.stdout | int / 1024 / 1024) | round(1) }}GB"

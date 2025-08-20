@@ -1,0 +1,157 @@
+---
+# ─────────────────────────────────────────────────────────────
+# Playbook : expand-aap-disk.yml  
+# Purpose  : Expand the AAP host disk to use full 128GB
+#            - Fix GPT partition table
+#            - Expand LVM partition to use more disk space
+#            - Expand physical volume
+#            - Create 70GB /opt for AAP installation
+# ─────────────────────────────────────────────────────────────
+
+- name: Expand AAP Host Disk to Full Capacity
+  hosts: aap
+  gather_facts: true
+  become: true
+
+  vars:
+    opt_target_size: "70g"    # AAP needs significant space
+    
+  tasks:
+    # ───────────────────────────────────────────────────────
+    # Step 1: Show current disk layout
+    # ───────────────────────────────────────────────────────
+    - name: Show current disk usage
+      command: df -h
+      register: df_before
+      changed_when: false
+
+    - name: Show current partition layout
+      command: fdisk -l /dev/sda
+      register: fdisk_before
+      changed_when: false
+
+    - name: Show current PV/VG status
+      shell: |
+        echo "=== Physical Volumes ==="
+        pvs
+        echo "=== Volume Groups ==="  
+        vgs
+        echo "=== Logical Volumes ==="
+        lvs
+      register: lvm_before
+      changed_when: false
+
+    - name: Display current state
+      debug:
+        msg:
+          - "=== CURRENT STATE ==="
+          - "{{ df_before.stdout_lines }}"
+          - ""
+          - "{{ lvm_before.stdout_lines }}"
+
+    # ───────────────────────────────────────────────────────
+    # Step 2: Fix GPT partition table and expand partition
+    # ───────────────────────────────────────────────────────
+    - name: Fix GPT partition table
+      shell: |
+        # Fix the GPT backup table location
+        sgdisk --backup=/tmp/sgdisk-backup.gpt /dev/sda
+        sgdisk --load-backup=/tmp/sgdisk-backup.gpt /dev/sda
+        
+        # Move backup GPT to end of disk  
+        sgdisk --move-second-header /dev/sda
+      register: gpt_fix
+      changed_when: gpt_fix.rc == 0
+      failed_when: false
+
+    - name: Expand LVM partition to use available space
+      shell: |
+        # Use parted to resize the partition to maximum available space
+        parted /dev/sda resizepart 4 100%
+      register: partition_expand
+      changed_when: partition_expand.rc == 0
+
+    - name: Inform kernel of partition changes
+      command: partprobe /dev/sda
+      changed_when: true
+
+    - name: Wait for partition changes to be recognized
+      pause:
+        seconds: 5
+
+    # ───────────────────────────────────────────────────────
+    # Step 3: Expand Physical Volume
+    # ───────────────────────────────────────────────────────
+    - name: Expand physical volume to use new partition space
+      command: pvresize /dev/sda4
+      register: pv_resize
+      changed_when: pv_resize.rc == 0
+
+    - name: Show expanded PV/VG status
+      shell: |
+        echo "=== After Expansion ==="
+        pvs
+        echo "---"
+        vgs
+      register: lvm_after_expand
+      changed_when: false
+
+    - name: Display expanded state
+      debug:
+        msg:
+          - "=== AFTER PV EXPANSION ==="
+          - "{{ lvm_after_expand.stdout_lines }}"
+
+    # ───────────────────────────────────────────────────────
+    # Step 4: Expand /opt to 70GB
+    # ───────────────────────────────────────────────────────
+    - name: Expand /opt logical volume to 70GB
+      community.general.lvol:
+        vg: rootvg
+        lv: opt
+        size: "{{ opt_target_size }}"
+        resizefs: true
+        state: present
+      register: opt_expansion
+
+    # ───────────────────────────────────────────────────────
+    # Step 5: Verify final layout
+    # ───────────────────────────────────────────────────────
+    - name: Show final disk usage
+      command: df -h
+      register: df_after
+      changed_when: false
+
+    - name: Show final LVM status
+      shell: |
+        echo "=== FINAL STATE ==="
+        pvs
+        echo "---"
+        vgs  
+        echo "---"
+        lvs
+      register: lvm_final
+      changed_when: false
+
+    - name: Display final state
+      debug:
+        msg:
+          - "=== FINAL DISK LAYOUT ==="
+          - "{{ df_after.stdout_lines }}"
+          - ""
+          - "{{ lvm_final.stdout_lines }}"
+
+    - name: Check /opt available space
+      shell: df /opt | tail -n1 | awk '{print $4}'
+      register: opt_space_kb
+      changed_when: false
+
+    - name: Verify sufficient space for AAP installation
+      assert:
+        that:
+          - (opt_space_kb.stdout | int) > 60000000  # 60GB in KB
+        success_msg: 
+          - "✅ Excellent! /opt now has {{ (opt_space_kb.stdout | int / 1024 / 1024) | round(1) }}GB available for AAP"
+        fail_msg:
+          - "❌ /opt expansion may have failed"
+          - "/opt has {{ (opt_space_kb.stdout | int / 1024 / 1024) | round(1) }}GB available"
